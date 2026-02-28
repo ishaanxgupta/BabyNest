@@ -13,7 +13,8 @@ import {
 import { useTheme } from '../theme/ThemeContext';
 import { Modal, Portal, Button, Provider } from 'react-native-paper'; // Import from paper
 import CustomHeader from '../Components/CustomHeader';
-import { BASE_URL } from '@env';
+import { BASE_URL } from '../config/config';
+import { offlineDatabaseService } from '../services/offline';
 
 const IconButton = ({ icon, label }) => {
   const { theme } = useTheme();
@@ -57,16 +58,15 @@ export default function SettingsScreen() {
 
   const fetchProfileData = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/get_profile`);
-      if (response.ok) {
-        const data = await response.json();
+      await offlineDatabaseService.initialize();
+      const data = await offlineDatabaseService.getProfile();
+      if (data) {
         setProfileData({
           name: data.name || 'Guest',
           due_date: data.due_date || 'Not set',
           location: data.location || 'Not set'
         });
       } else {
-        // If profile not found, keep default values
         console.log('Profile not found, using default values');
       }
     } catch (error) {

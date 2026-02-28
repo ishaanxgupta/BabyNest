@@ -3,6 +3,9 @@
  * Manages conversation state and follow-up context for RAG system
  */
 
+import { offlineDatabaseService, offlineContextCache } from './offline';
+import { DEFAULT_USER_ID } from '../config/config';
+
 class ConversationContext {
   constructor() {
     this.pendingFollowUp = null;
@@ -311,25 +314,20 @@ class ConversationContext {
     const results = [];
     let successCount = 0;
     
-    // Import BASE_URL from environment
-    const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:5000';
+    await offlineDatabaseService.initialize();
     
     for (const appointment of selectedAppointments) {
       try {
-        const response = await fetch(`${BASE_URL}/delete_appointment/${appointment.id}`, {
-          method: 'DELETE'
-        });
-        
-        if (response.ok) {
-          successCount++;
-          results.push(`✅ "${appointment.title}" deleted successfully`);
-        } else {
-          const errorData = await response.json();
-          results.push(`❌ Failed to delete "${appointment.title}": ${errorData.error || 'Unknown error'}`);
-        }
+        await offlineDatabaseService.deleteAppointment(appointment.id);
+        successCount++;
+        results.push(`✅ "${appointment.title}" deleted successfully`);
       } catch (error) {
         results.push(`❌ Error deleting "${appointment.title}": ${error.message}`);
       }
+    }
+    
+    if (successCount > 0) {
+      await offlineContextCache.updateCache(DEFAULT_USER_ID, 'appointments', 'delete');
     }
     
     const message = `📋 **Deletion Results:**\n\n${results.join('\n')}\n\n✅ Successfully deleted ${successCount} out of ${selectedAppointments.length} appointments.`;
@@ -353,24 +351,14 @@ class ConversationContext {
         content: updateData.note || selectedAppointment.content
       };
       
-      // Import BASE_URL from environment
-      const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:5000';
+      await offlineDatabaseService.initialize();
+      await offlineDatabaseService.updateAppointment(selectedAppointment.id, updatePayload);
+      await offlineContextCache.updateCache(DEFAULT_USER_ID, 'appointments', 'update');
       
-      const response = await fetch(`${BASE_URL}/update_appointment/${selectedAppointment.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatePayload)
-      });
-      
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ Appointment "${updatePayload.title}" updated successfully!\n\n📅 Date: ${updatePayload.appointment_date}\n⏰ Time: ${updatePayload.appointment_time}\n📍 Location: ${updatePayload.appointment_location}`
-        };
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update appointment');
-      }
+      return {
+        success: true,
+        message: `✅ Appointment "${updatePayload.title}" updated successfully!\n\n📅 Date: ${updatePayload.appointment_date}\n⏰ Time: ${updatePayload.appointment_time}\n📍 Location: ${updatePayload.appointment_location}`
+      };
     } catch (error) {
       return {
         success: false,

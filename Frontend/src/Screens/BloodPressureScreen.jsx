@@ -10,7 +10,8 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 import {TextInput, Button, Card, Portal, Dialog} from 'react-native-paper';
 import HeaderWithBack from '../Components/HeaderWithBack';
-import {BASE_URL} from '@env';
+import {BASE_URL} from '../config/config';
+import {offlineDatabaseService, offlineContextCache} from '../services/offline';
 
 export default function BloodPressureScreen() {
   const [week, setWeek] = useState('');
@@ -27,9 +28,9 @@ export default function BloodPressureScreen() {
 
   const fetchBPLogs = async () => {
     try {
-      const res = await fetch(`${BASE_URL}/blood_pressure`);
-      const data = await res.json();
-      setHistory(data.reverse());
+      await offlineDatabaseService.initialize();
+      const data = await offlineDatabaseService.getBPLogs(50);
+      setHistory(data);
     } catch (err) {
       console.error('Failed to fetch BP logs:', err);
     }
@@ -52,17 +53,14 @@ export default function BloodPressureScreen() {
     }
 
     try {
-      await fetch(`${BASE_URL}/set_bp_log`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          week_number: week,
-          systolic,
-          diastolic,
-          time,
-          note,
-        }),
+      await offlineDatabaseService.logBP({
+        week_number: parseInt(week),
+        systolic: parseInt(systolic),
+        diastolic: parseInt(diastolic),
+        time: time,
+        note: note,
       });
+      await offlineContextCache.updateCache('default', 'blood_pressure', 'create');
       setWeek('');
       setSystolic('');
       setDiastolic('');
@@ -85,17 +83,14 @@ export default function BloodPressureScreen() {
 
   const handleUpdate = async () => {
     try {
-      await fetch(`${BASE_URL}/blood_pressure/${editData.id}`, {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          week_number: editData.week_number,
-          systolic: editData.systolic,
-          diastolic: editData.diastolic,
-          time: editData.time,
-          note: editData.note,
-        }),
+      await offlineDatabaseService.updateBPLog(editData.id, {
+        week_number: editData.week_number,
+        systolic: editData.systolic,
+        diastolic: editData.diastolic,
+        time: editData.time,
+        note: editData.note,
       });
+      await offlineContextCache.updateCache('default', 'blood_pressure', 'update');
       setEditVisible(false);
       setEditData(null);
       fetchBPLogs();
@@ -119,9 +114,8 @@ export default function BloodPressureScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await fetch(`${BASE_URL}/blood_pressure/${id}`, {
-                method: 'DELETE',
-              });
+              await offlineDatabaseService.deleteBPLog(id);
+              await offlineContextCache.updateCache('default', 'blood_pressure', 'delete');
               fetchBPLogs();
             } catch (err) {
               console.error('Failed to delete BP log:', err);

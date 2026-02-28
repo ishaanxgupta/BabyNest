@@ -8,9 +8,10 @@ import {
   Alert,
 } from 'react-native';
 import {TextInput, Button, Card, Portal, Dialog} from 'react-native-paper';
-import {BASE_URL} from '@env';
+import {BASE_URL} from '../config/config';
 import HeaderWithBack from '../Components/HeaderWithBack';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import {offlineDatabaseService, offlineContextCache} from '../services/offline';
 
 export default function SymptomsScreen() {
   const [week, setWeek] = useState('');
@@ -24,12 +25,9 @@ export default function SymptomsScreen() {
 
   const fetchSymptomsHistory = async () => {
     try {
-      const res = await fetch(`${BASE_URL}/symptoms`);
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-      const data = await res.json();
-      setHistory([...data].reverse());
+      await offlineDatabaseService.initialize();
+      const data = await offlineDatabaseService.getSymptomLogs(50);
+      setHistory(data);
     } catch (err) {
       console.error('Failed to fetch symptoms:', err);
       Alert.alert('Error', 'Failed to load symptoms. Please try again.');
@@ -56,15 +54,12 @@ export default function SymptomsScreen() {
     }
 
     try {
-      const res = await fetch(`${BASE_URL}/symptoms`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({week_number: week, symptom, note}),
+      await offlineDatabaseService.logSymptom({
+        week_number: parseInt(week),
+        symptom: symptom,
+        note: note
       });
-
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
+      await offlineContextCache.updateCache('default', 'symptoms', 'create');
 
       setWeek('');
       setSymptom('');
@@ -91,19 +86,12 @@ export default function SymptomsScreen() {
     }
 
     try {
-      const res = await fetch(`${BASE_URL}/symptoms/${editData.id}`, {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          week_number: editData.week_number,
-          symptom: editData.symptom,
-          note: editData.note,
-        }),
+      await offlineDatabaseService.updateSymptom(editData.id, {
+        week_number: editData.week_number,
+        symptom: editData.symptom,
+        note: editData.note,
       });
-
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
+      await offlineContextCache.updateCache('default', 'symptoms', 'update');
 
       setEditVisible(false);
       setEditData(null);
@@ -125,13 +113,8 @@ export default function SymptomsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const res = await fetch(`${BASE_URL}/symptoms/${id}`, {
-                method: 'DELETE',
-              });
-
-              if (!res.ok) {
-                throw new Error(`HTTP error! status: ${res.status}`);
-              }
+              await offlineDatabaseService.deleteSymptom(id);
+              await offlineContextCache.updateCache('default', 'symptoms', 'delete');
 
               fetchSymptomsHistory();
             } catch (err) {

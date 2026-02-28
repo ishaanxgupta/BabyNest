@@ -14,8 +14,9 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { countries } from '../data/countries';
-import { BASE_URL } from '@env';
+import { BASE_URL } from '../config/config';
 import { Calendar } from 'react-native-calendars';
+import { offlineDatabaseService } from '../services/offline';
 export default function BasicDetailsScreen() {
   const navigation = useNavigation();
 
@@ -74,30 +75,26 @@ export default function BasicDetailsScreen() {
     if (Object.keys(newErrors).length > 0) return;
     try {
       setIsLoading(true);
-    const res = await fetch(`${BASE_URL}/set_profile`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      await offlineDatabaseService.initialize();
+      
+      const result = await offlineDatabaseService.setProfile({
         location: country,
         lmp: lmpDate,
         cycleLength: Number(cycleLength),
         periodLength: Number(periodLength),
         age: Number(age),
         weight: Number(weight),
-      }),
-    });
+      });
 
-    const data = await res.json();
-
-    if (data.error) {
-      setErrors({ form: data.error });
-    } else {
-      setErrors({});
-      navigation.replace('DueDate', { dueDate: data.dueDate });
-    }
-  } catch (error) {
+      if (result.dueDate) {
+        setErrors({});
+        navigation.replace('DueDate', { dueDate: result.dueDate });
+      } else {
+        setErrors({ form: 'Failed to save profile' });
+      }
+    } catch (error) {
       console.error('Profile submission failed:', error);
-      setErrors({ form: 'Failed to submit. Please check your connection and try again.' });
+      setErrors({ form: 'Failed to save profile. Please try again.' });
     } finally {
       setIsLoading(false);
     }

@@ -12,7 +12,8 @@ import {
   SafeAreaView,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import {BASE_URL} from "@env";
+import {BASE_URL} from "../config/config";
+import { offlineDatabaseService } from '../services/offline';
 
 const { width:initialWidth, height: initialHeight } = Dimensions.get("window");
 const scale = size =>(initialWidth / 375) * size;
@@ -56,9 +57,9 @@ export default function OnBoardingScreen() {
 
   const check = async () =>{
     try{
-      const res = await fetch(`${BASE_URL}/get_profile`);
-      const data = await res.json();
-      return !data.error
+      await offlineDatabaseService.initialize();
+      const data = await offlineDatabaseService.getProfile();
+      return data !== null && data !== undefined;
     }
     catch(err){
       console.error("Error fetching profile data:", err);

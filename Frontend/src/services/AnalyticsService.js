@@ -3,7 +3,8 @@
  * Provides comprehensive health analytics and visualization data
  */
 
-import { BASE_URL } from '@env';
+import { BASE_URL } from '../config/config';
+import { offlineDatabaseService } from './offline';
 
 class AnalyticsService {
   constructor() {
@@ -99,16 +100,29 @@ class AnalyticsService {
    * Fetch raw data for a specific metric
    */
   async fetchMetricData(metric, timeframe, options) {
-    const endpoint = this.getEndpointForMetric(metric);
-    const params = this.buildQueryParams(timeframe, options);
+    await offlineDatabaseService.initialize();
+    const limit = options.limit || 50;
     
-    const response = await fetch(`${BASE_URL}${endpoint}?${params}`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch ${metric} data: ${response.statusText}`);
+    switch (metric) {
+      case 'weight':
+        return await offlineDatabaseService.getWeightLogs(limit);
+      case 'mood':
+        return await offlineDatabaseService.getMoodLogs(limit);
+      case 'sleep':
+        return await offlineDatabaseService.getSleepLogs(limit);
+      case 'symptoms':
+        return await offlineDatabaseService.getSymptomLogs(limit);
+      case 'blood_pressure':
+        return await offlineDatabaseService.getBPLogs(limit);
+      case 'medicine':
+        return await offlineDatabaseService.getMedicineLogs(limit);
+      case 'appointments':
+        return await offlineDatabaseService.getAppointments();
+      case 'tasks':
+        return await offlineDatabaseService.getTasks();
+      default:
+        return [];
     }
-    
-    return await response.json();
   }
 
   /**

@@ -10,7 +10,8 @@ import {
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { BASE_URL } from '@env';
+import { BASE_URL } from '../config/config';
+import { offlineDatabaseService } from '../services/offline';
 
 export default function AllTasksScreen({ navigation, route }) {
   const [tasks, setTasks] = useState([]);
@@ -24,8 +25,8 @@ export default function AllTasksScreen({ navigation, route }) {
 
   const fetchTasks = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/get_tasks`);
-      const data = await response.json();
+      await offlineDatabaseService.initialize();
+      const data = await offlineDatabaseService.getTasks();
       setTasks(data || []);
     } catch (error) {
       console.error('Error fetching tasks:', error);

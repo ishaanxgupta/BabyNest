@@ -2,15 +2,23 @@
  * RAG (Retrieval-Augmented Generation) Service
  * Intelligent query processing system for BabyNest app
  * Handles all user queries with semantic understanding
+ * 
+ * FULLY OFFLINE VERSION - Uses local database and services
  */
 
-import { BASE_URL } from '@env';
+import { BASE_URL, DEFAULT_USER_ID, FEATURES } from '../config/config';
+import { offlineDatabaseService } from './offline/OfflineDatabaseService';
+import { offlineContextCache } from './offline/OfflineContextCache';
+import { offlineAgentService } from './offline/OfflineAgentService';
+import { analyticsService } from './AnalyticsService';
+import { actionExecutor } from './ActionExecutor';
 
 class RAGService {
   constructor() {
     this.intentEmbeddings = {};
     this.conversationContext = null;
     this.isInitialized = false;
+    this.isOfflineMode = true;
   }
 
   /**
@@ -1688,28 +1696,22 @@ class RAGService {
       console.log('Original date:', data.date, '→ Proper date:', properDate);
       console.log('Original time:', data.time, '→ Proper time:', properTime);
 
-      const response = await fetch(`${BASE_URL}/add_appointment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: data.title || 'Appointment',
-          content: `Appointment scheduled via chat`,
-          appointment_date: properDate,
-          appointment_time: properTime,
-          appointment_location: data.location || 'TBD',
-        })
+      await offlineDatabaseService.initialize();
+      await offlineDatabaseService.createAppointment({
+        title: data.title || 'Appointment',
+        content: `Appointment scheduled via chat`,
+        appointment_date: properDate,
+        appointment_time: properTime,
+        appointment_location: data.location || 'TBD',
       });
+      await offlineContextCache.updateCache(DEFAULT_USER_ID, 'appointments', 'create');
 
-      if (response.ok) {
-        return {
-          success: true,
-          message: `📅 Appointment "${data.title || 'Appointment'}" scheduled for ${data.date || 'TBD'} at ${data.time || 'TBD'}${data.location ? ` at ${data.location}` : ''}`,
-          action: 'navigate',
-          screen: 'appointments'
-        };
-      } else {
-        throw new Error('Failed to create appointment');
-      }
+      return {
+        success: true,
+        message: `📅 Appointment "${data.title || 'Appointment'}" scheduled for ${data.date || 'TBD'} at ${data.time || 'TBD'}${data.location ? ` at ${data.location}` : ''}`,
+        action: 'navigate',
+        screen: 'appointments'
+      };
     } catch (error) {
       return {
         success: false,
@@ -1723,26 +1725,21 @@ class RAGService {
    */
   async logWeight(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/weight`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          weight: data.weight,
-          week_number: data.week_number || userContext.current_week || 12,
-          note: data.note || ''
-        })
+      await offlineDatabaseService.initialize();
+      const weekNumber = data.week_number || userContext.current_week || 12;
+      await offlineDatabaseService.logWeight({
+        weight: data.weight,
+        week_number: weekNumber,
+        note: data.note || ''
       });
+      await offlineContextCache.updateCache(DEFAULT_USER_ID, 'weight', 'create');
 
-      if (response.ok) {
-        return {
-          success: true,
-          message: `⚖️ Weight ${data.weight}kg logged for week ${data.week_number || userContext.current_week || 12}${data.note ? ` (Note: ${data.note})` : ''}`,
-          action: 'navigate',
-          screen: 'weight'
-        };
-      } else {
-        throw new Error('Failed to log weight');
-      }
+      return {
+        success: true,
+        message: `⚖️ Weight ${data.weight}kg logged for week ${weekNumber}${data.note ? ` (Note: ${data.note})` : ''}`,
+        action: 'navigate',
+        screen: 'weight'
+      };
     } catch (error) {
       return {
         success: false,
@@ -1756,26 +1753,21 @@ class RAGService {
    */
   async logSymptoms(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/symptoms`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          symptom: data.symptom,
-          week_number: data.week_number || userContext.current_week || 12,
-          note: data.note || ''
-        })
+      await offlineDatabaseService.initialize();
+      const weekNumber = data.week_number || userContext.current_week || 12;
+      await offlineDatabaseService.logSymptom({
+        symptom: data.symptom,
+        week_number: weekNumber,
+        note: data.note || ''
       });
+      await offlineContextCache.updateCache(DEFAULT_USER_ID, 'symptoms', 'create');
 
-      if (response.ok) {
-        return {
-          success: true,
-          message: `🩺 Symptom "${data.symptom}" logged for week ${data.week_number || userContext.current_week || 12}${data.note ? ` (Note: ${data.note})` : ''}`,
-          action: 'navigate',
-          screen: 'symptoms'
-        };
-      } else {
-        throw new Error('Failed to log symptoms');
-      }
+      return {
+        success: true,
+        message: `🩺 Symptom "${data.symptom}" logged for week ${weekNumber}${data.note ? ` (Note: ${data.note})` : ''}`,
+        action: 'navigate',
+        screen: 'symptoms'
+      };
     } catch (error) {
       return {
         success: false,
@@ -1789,28 +1781,23 @@ class RAGService {
    */
   async logBloodPressure(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/blood_pressure`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systolic: data.systolic,
-          diastolic: data.diastolic,
-          week_number: data.week_number || userContext.current_week || 12,
-          time: data.time || new Date().toLocaleTimeString(),
-          note: data.note || ''
-        })
+      await offlineDatabaseService.initialize();
+      const weekNumber = data.week_number || userContext.current_week || 12;
+      await offlineDatabaseService.logBP({
+        systolic: data.systolic,
+        diastolic: data.diastolic,
+        week_number: weekNumber,
+        time: data.time || new Date().toLocaleTimeString(),
+        note: data.note || ''
       });
+      await offlineContextCache.updateCache(DEFAULT_USER_ID, 'blood_pressure', 'create');
 
-      if (response.ok) {
-        return {
-          success: true,
-          message: `🩸 Blood pressure ${data.systolic}/${data.diastolic} logged for week ${data.week_number || userContext.current_week || 12}${data.note ? ` (Note: ${data.note})` : ''}`,
-          action: 'navigate',
-          screen: 'bloodpressure'
-        };
-      } else {
-        throw new Error('Failed to log blood pressure');
-      }
+      return {
+        success: true,
+        message: `🩸 Blood pressure ${data.systolic}/${data.diastolic} logged for week ${weekNumber}${data.note ? ` (Note: ${data.note})` : ''}`,
+        action: 'navigate',
+        screen: 'bloodpressure'
+      };
     } catch (error) {
       return {
         success: false,
@@ -1824,28 +1811,23 @@ class RAGService {
    */
   async logMedicine(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/set_medicine`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: data.name,
-          dose: data.dose || '',
-          time: data.time || '',
-          week_number: data.week_number || userContext.current_week || 12,
-          note: data.note || ''
-        })
+      await offlineDatabaseService.initialize();
+      const weekNumber = data.week_number || userContext.current_week || 12;
+      await offlineDatabaseService.logMedicine({
+        name: data.name,
+        dose: data.dose || '',
+        time: data.time || '',
+        week_number: weekNumber,
+        note: data.note || ''
       });
+      await offlineContextCache.updateCache(DEFAULT_USER_ID, 'medicine', 'create');
 
-      if (response.ok) {
-        return {
-          success: true,
-          message: `💊 Medicine "${data.name}"${data.dose ? ` (${data.dose})` : ''} logged for week ${data.week_number || userContext.current_week || 12}${data.time ? ` at ${data.time}` : ''}${data.note ? ` (Note: ${data.note})` : ''}`,
-          action: 'navigate',
-          screen: 'medicine'
-        };
-      } else {
-        throw new Error('Failed to log medicine');
-      }
+      return {
+        success: true,
+        message: `💊 Medicine "${data.name}"${data.dose ? ` (${data.dose})` : ''} logged for week ${weekNumber}${data.time ? ` at ${data.time}` : ''}${data.note ? ` (Note: ${data.note})` : ''}`,
+        action: 'navigate',
+        screen: 'medicine'
+      };
     } catch (error) {
       return {
         success: false,
@@ -1859,28 +1841,23 @@ class RAGService {
    */
   async logDischarge(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/set_discharge_log`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: data.type,
-          color: data.color,
-          bleeding: data.bleeding || 'no',
-          week_number: data.week_number || userContext.current_week || 12,
-          note: data.note || ''
-        })
+      await offlineDatabaseService.initialize();
+      const weekNumber = data.week_number || userContext.current_week || 12;
+      await offlineDatabaseService.logDischarge({
+        type: data.type,
+        color: data.color,
+        bleeding: data.bleeding || 'no',
+        week_number: weekNumber,
+        note: data.note || ''
       });
+      await offlineContextCache.updateCache(DEFAULT_USER_ID, 'discharge', 'create');
 
-      if (response.ok) {
-        return {
-          success: true,
-          message: `🩸 Discharge log recorded for week ${data.week_number || userContext.current_week || 12}: ${data.type}, ${data.color}${data.note ? ` (Note: ${data.note})` : ''}`,
-          action: 'navigate',
-          screen: 'discharge'
-        };
-      } else {
-        throw new Error('Failed to log discharge');
-      }
+      return {
+        success: true,
+        message: `🩸 Discharge log recorded for week ${weekNumber}: ${data.type}, ${data.color}${data.note ? ` (Note: ${data.note})` : ''}`,
+        action: 'navigate',
+        screen: 'discharge'
+      };
     } catch (error) {
       return {
         success: false,
@@ -1894,30 +1871,25 @@ class RAGService {
    */
   async createTask(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/add_task`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: data.title,
-          starting_week: data.week || userContext.current_week || 12,
-          ending_week: data.week || userContext.current_week || 12,
-          task_priority: data.priority || 'medium',
-          task_status: 'pending',
-          is_optional: false,
-          content: data.note || ''
-        })
+      await offlineDatabaseService.initialize();
+      const weekNumber = data.week || userContext.current_week || 12;
+      await offlineDatabaseService.createTask({
+        title: data.title,
+        starting_week: weekNumber,
+        ending_week: weekNumber,
+        task_priority: data.priority || 'medium',
+        task_status: 'pending',
+        is_optional: false,
+        content: data.note || ''
       });
+      await offlineContextCache.updateCache(DEFAULT_USER_ID, 'tasks', 'create');
 
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ Task "${data.title}" created for week ${data.week || userContext.current_week || 12} with ${data.priority || 'medium'} priority`,
-          action: 'navigate',
-          screen: 'tasks'
-        };
-      } else {
-        throw new Error('Failed to create task');
-      }
+      return {
+        success: true,
+        message: `✅ Task "${data.title}" created for week ${weekNumber} with ${data.priority || 'medium'} priority`,
+        action: 'navigate',
+        screen: 'tasks'
+      };
     } catch (error) {
       return {
         success: false,
@@ -1960,24 +1932,18 @@ class RAGService {
    */
   async updateProfile(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/update_profile`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          [data.field]: data.value
-        })
-      });
+      await offlineDatabaseService.initialize();
+      const profile = await offlineDatabaseService.getProfile() || {};
+      profile[data.field] = data.value;
+      await offlineDatabaseService.setProfile(profile);
+      await offlineContextCache.updateCache(DEFAULT_USER_ID, 'profile', 'update');
 
-      if (response.ok) {
-        return {
-          success: true,
-          message: `👤 Profile updated successfully! ${data.field} set to ${data.value}`,
-          action: 'navigate',
-          screen: 'settings'
-        };
-      } else {
-        throw new Error('Failed to update profile');
-      }
+      return {
+        success: true,
+        message: `👤 Profile updated successfully! ${data.field} set to ${data.value}`,
+        action: 'navigate',
+        screen: 'settings'
+      };
     } catch (error) {
       return {
         success: false,
@@ -1991,36 +1957,34 @@ class RAGService {
    */
   async getData(data, userContext) {
     try {
-      let endpoint = '';
+      await offlineDatabaseService.initialize();
+      let result = [];
+      
       switch (data.type) {
         case 'appointments':
-          endpoint = '/get_appointments';
+          result = await offlineDatabaseService.getAppointments();
           break;
         case 'weight':
-          endpoint = '/get_weight';
+          result = await offlineDatabaseService.getWeightLogs(50);
           break;
         case 'symptoms':
-          endpoint = '/get_symptoms';
+          result = await offlineDatabaseService.getSymptomLogs(50);
           break;
         case 'medicine':
-          endpoint = '/get_all_medicine';
+          result = await offlineDatabaseService.getMedicineLogs(50);
           break;
         case 'blood_pressure':
-          endpoint = '/get_blood_pressure';
+          result = await offlineDatabaseService.getBPLogs(50);
           break;
         case 'discharge':
-          endpoint = '/get_discharge_logs';
+          result = await offlineDatabaseService.getDischargeLogs(50);
           break;
         case 'tasks':
-          endpoint = '/get_tasks';
+          result = await offlineDatabaseService.getTasks();
           break;
         default:
           throw new Error('Unknown data type');
       }
-
-      const response = await fetch(`${BASE_URL}${endpoint}`);
-      if (response.ok) {
-        const result = await response.json();
         
         // Format the data for display
         let formattedMessage = '';
@@ -2061,14 +2025,11 @@ class RAGService {
             formattedMessage = `📊 **${data.type} Data:**\n\n${JSON.stringify(result, null, 2)}`;
         }
         
-        return {
-          success: true,
-          message: formattedMessage,
-          data: result
-        };
-      } else {
-        throw new Error('Failed to fetch data');
-      }
+      return {
+        success: true,
+        message: formattedMessage,
+        data: result
+      };
     } catch (error) {
       return {
         success: false,
@@ -2082,13 +2043,8 @@ class RAGService {
    */
   async updateAppointment(data, userContext) {
     try {
-      // First, get all appointments to find the one to update
-      const appointmentsResponse = await fetch(`${BASE_URL}/get_appointments`);
-      if (!appointmentsResponse.ok) {
-        throw new Error('Failed to fetch appointments');
-      }
-      
-      const appointments = await appointmentsResponse.json();
+      await offlineDatabaseService.initialize();
+      const appointments = await offlineDatabaseService.getAppointments();
       const matchingAppointments = this.findMatchingAppointments(appointments, data.appointment_identifier);
       
       if (matchingAppointments.length === 0) {
@@ -2129,20 +2085,13 @@ class RAGService {
         content: data.note || appointmentToUpdate.content
       };
       
-      const response = await fetch(`${BASE_URL}/update_appointment/${appointmentToUpdate.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData)
-      });
+      await offlineDatabaseService.updateAppointment(appointmentToUpdate.id, updateData);
+      await offlineContextCache.updateCache(DEFAULT_USER_ID, 'appointments', 'update');
       
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ Appointment "${updateData.title}" updated successfully!\n\n📅 Date: ${updateData.appointment_date}\n⏰ Time: ${updateData.appointment_time}\n📍 Location: ${updateData.appointment_location}`
-        };
-      } else {
-        throw new Error('Failed to update appointment');
-      }
+      return {
+        success: true,
+        message: `✅ Appointment "${updateData.title}" updated successfully!\n\n📅 Date: ${updateData.appointment_date}\n⏰ Time: ${updateData.appointment_time}\n📍 Location: ${updateData.appointment_location}`
+      };
     } catch (error) {
       return {
         success: false,
@@ -2156,13 +2105,8 @@ class RAGService {
    */
   async deleteAppointment(data, userContext) {
     try {
-      // First, get all appointments to find the one to delete
-      const appointmentsResponse = await fetch(`${BASE_URL}/get_appointments`);
-      if (!appointmentsResponse.ok) {
-        throw new Error('Failed to fetch appointments');
-      }
-      
-      const appointments = await appointmentsResponse.json();
+      await offlineDatabaseService.initialize();
+      const appointments = await offlineDatabaseService.getAppointments();
       const matchingAppointments = this.findMatchingAppointments(appointments, data.appointment_identifier);
       
       if (matchingAppointments.length === 0) {
@@ -2204,19 +2148,13 @@ class RAGService {
       // Single match - proceed with deletion
       const appointmentToDelete = matchingAppointments[0];
       
-      const response = await fetch(`${BASE_URL}/delete_appointment/${appointmentToDelete.id}`, {
-        method: 'DELETE'
-      });
+      await offlineDatabaseService.deleteAppointment(appointmentToDelete.id);
+      await offlineContextCache.updateCache(DEFAULT_USER_ID, 'appointments', 'delete');
       
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ Appointment "${appointmentToDelete.title}" deleted successfully!`
-        };
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete appointment');
-      }
+      return {
+        success: true,
+        message: `✅ Appointment "${appointmentToDelete.title}" deleted successfully!`
+      };
     } catch (error) {
       console.error('Delete appointment error:', error);
       return {
@@ -2334,9 +2272,9 @@ class RAGService {
    */
   async logout(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/delete_profile`, {
-        method: 'DELETE'
-      });
+      await offlineDatabaseService.initialize();
+      await offlineDatabaseService.deleteProfile();
+      await offlineContextCache.invalidateCache(DEFAULT_USER_ID);
 
       return {
         success: true,
@@ -2357,26 +2295,18 @@ class RAGService {
    */
   async handleGeneralChat(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/agent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: data.query || '',
-          user_id: "default"
-        })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        return {
-          success: true,
-          message: result.response || 'I\'m here to help with your pregnancy journey!',
-          action: 'generalChat'
-        };
-      } else {
-        throw new Error('Backend agent request failed');
+      if (!offlineAgentService.isInitialized) {
+        await offlineAgentService.initialize();
       }
+      const response = await offlineAgentService.run(data.query || '');
+
+      return {
+        success: true,
+        message: response || 'I\'m here to help with your pregnancy journey!',
+        action: 'generalChat'
+      };
     } catch (error) {
+      console.error('Error in handleGeneralChat:', error);
       return {
         success: true,
         message: 'I\'m here to help with your pregnancy journey! How can I assist you today?',
@@ -2606,25 +2536,20 @@ class RAGService {
    */
   async logMood(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/log_mood`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mood: data.mood,
-          intensity: data.intensity || 'medium',
-          note: data.note || '',
-          week_number: userContext.current_week || 12
-        })
+      await offlineDatabaseService.initialize();
+      const weekNumber = userContext.current_week || 12;
+      await offlineDatabaseService.logMood({
+        mood: data.mood,
+        intensity: data.intensity || 'medium',
+        note: data.note || '',
+        week_number: weekNumber
       });
+      await offlineContextCache.updateCache(DEFAULT_USER_ID, 'mood', 'create');
 
-      if (response.ok) {
-        return {
-          success: true,
-          message: `😊 Mood logged successfully!\n\n**Mood:** ${data.mood}\n**Intensity:** ${data.intensity || 'medium'}\n**Week:** ${userContext.current_week || 12}`
-        };
-      } else {
-        throw new Error('Failed to log mood');
-      }
+      return {
+        success: true,
+        message: `😊 Mood logged successfully!\n\n**Mood:** ${data.mood}\n**Intensity:** ${data.intensity || 'medium'}\n**Week:** ${weekNumber}`
+      };
     } catch (error) {
       return {
         success: false,
@@ -2638,32 +2563,27 @@ class RAGService {
    */
   async logSleep(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/log_sleep`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          duration: data.duration,
-          bedtime: data.bedtime || null,
-          wake_time: data.wake_time || null,
-          quality: data.quality || 'good',
-          note: data.note || '',
-          week_number: userContext.current_week || 12
-        })
+      await offlineDatabaseService.initialize();
+      const weekNumber = userContext.current_week || 12;
+      await offlineDatabaseService.logSleep({
+        duration: data.duration,
+        bedtime: data.bedtime || null,
+        wake_time: data.wake_time || null,
+        quality: data.quality || 'good',
+        note: data.note || '',
+        week_number: weekNumber
       });
+      await offlineContextCache.updateCache(DEFAULT_USER_ID, 'sleep', 'create');
 
-      if (response.ok) {
-        let message = `😴 Sleep logged successfully!\n\n**Duration:** ${data.duration} hours`;
-        if (data.bedtime) message += `\n**Bedtime:** ${data.bedtime}`;
-        if (data.wake_time) message += `\n**Wake time:** ${data.wake_time}`;
-        message += `\n**Quality:** ${data.quality || 'good'}\n**Week:** ${userContext.current_week || 12}`;
+      let message = `😴 Sleep logged successfully!\n\n**Duration:** ${data.duration} hours`;
+      if (data.bedtime) message += `\n**Bedtime:** ${data.bedtime}`;
+      if (data.wake_time) message += `\n**Wake time:** ${data.wake_time}`;
+      message += `\n**Quality:** ${data.quality || 'good'}\n**Week:** ${weekNumber}`;
 
-        return {
-          success: true,
-          message: message
-        };
-      } else {
-        throw new Error('Failed to log sleep');
-      }
+      return {
+        success: true,
+        message: message
+      };
     } catch (error) {
       return {
         success: false,
@@ -2677,22 +2597,16 @@ class RAGService {
    */
   async queryAnalytics(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/get_analytics`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          metric: data.metric,
-          timeframe: data.timeframe || 'week',
-          chart_type: data.chart_type || 'summary'
-        })
-      });
+      const result = await analyticsService.getAnalytics(
+        data.metric,
+        data.timeframe || 'week',
+        data.chart_type || 'summary'
+      );
 
-      if (response.ok) {
-        const result = await response.json();
-        
+      if (result.success) {
         let message = `📊 **${data.metric.charAt(0).toUpperCase() + data.metric.slice(1)} Analytics**\n\n`;
         
-        // Use the insights from the backend response
+        // Use the insights from the result
         if (result.insights) {
           for (const [key, value] of Object.entries(result.insights)) {
             if (key === 'trend') {
@@ -2760,7 +2674,7 @@ class RAGService {
           chartReady: true
         };
       } else {
-        throw new Error('Failed to fetch analytics');
+        throw new Error('Failed to generate analytics');
       }
     } catch (error) {
       return {
@@ -2846,61 +2760,57 @@ class RAGService {
    */
   async viewWeightLogs(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/weight`);
-      if (response.ok) {
-        const logs = await response.json();
-        
-        // Filter by week if specified
-        let filteredLogs = logs;
-        if (data.week_number) {
-          filteredLogs = logs.filter(log => log.week_number === data.week_number);
-        }
-        
-        // Limit results if specified
-        if (data.limit) {
-          filteredLogs = filteredLogs.slice(0, data.limit);
-        }
-        
-        if (filteredLogs.length === 0) {
-          return {
-            success: true,
-            message: `📊 **Weight Logs**\n\nNo weight entries found${data.week_number ? ` for week ${data.week_number}` : ''}.`
-          };
-        }
-        
-        let message = `📊 **Weight Logs**\n\n`;
-        
-        // Add summary info
-        message += `📈 **Total Entries:** ${filteredLogs.length}\n`;
-        if (filteredLogs.length > 1) {
-          const weights = filteredLogs.map(log => log.weight);
-          const minWeight = Math.min(...weights);
-          const maxWeight = Math.max(...weights);
-          const avgWeight = (weights.reduce((a, b) => a + b, 0) / weights.length).toFixed(1);
-          message += `⚖️ **Range:** ${minWeight}kg - ${maxWeight}kg\n`;
-          message += `📊 **Average:** ${avgWeight}kg\n\n`;
-        }
-        
-        // Format individual entries
-        filteredLogs.forEach((log, index) => {
-          message += `**${index + 1}. Week ${log.week_number}**\n`;
-          message += `   ⚖️ **Weight:** ${log.weight}kg\n`;
-          if (log.note) message += `   📝 **Note:** ${log.note}\n`;
-          if (log.created_at) {
-            const date = new Date(log.created_at).toLocaleDateString();
-            message += `   📅 **Date:** ${date}\n`;
-          }
-          message += `\n`;
-        });
-        
+      await offlineDatabaseService.initialize();
+      const logs = await offlineDatabaseService.getWeightLogs(50);
+      
+      // Filter by week if specified
+      let filteredLogs = logs;
+      if (data.week_number) {
+        filteredLogs = logs.filter(log => log.week_number === data.week_number);
+      }
+      
+      // Limit results if specified
+      if (data.limit) {
+        filteredLogs = filteredLogs.slice(0, data.limit);
+      }
+      
+      if (filteredLogs.length === 0) {
         return {
           success: true,
-          message: message,
-          data: filteredLogs
+          message: `📊 **Weight Logs**\n\nNo weight entries found${data.week_number ? ` for week ${data.week_number}` : ''}.`
         };
-      } else {
-        throw new Error('Failed to fetch weight logs');
       }
+      
+      let message = `📊 **Weight Logs**\n\n`;
+      
+      // Add summary info
+      message += `📈 **Total Entries:** ${filteredLogs.length}\n`;
+      if (filteredLogs.length > 1) {
+        const weights = filteredLogs.map(log => log.weight);
+        const minWeight = Math.min(...weights);
+        const maxWeight = Math.max(...weights);
+        const avgWeight = (weights.reduce((a, b) => a + b, 0) / weights.length).toFixed(1);
+        message += `⚖️ **Range:** ${minWeight}kg - ${maxWeight}kg\n`;
+        message += `📊 **Average:** ${avgWeight}kg\n\n`;
+      }
+      
+      // Format individual entries
+      filteredLogs.forEach((log, index) => {
+        message += `**${index + 1}. Week ${log.week_number}**\n`;
+        message += `   ⚖️ **Weight:** ${log.weight}kg\n`;
+        if (log.note) message += `   📝 **Note:** ${log.note}\n`;
+        if (log.created_at) {
+          const date = new Date(log.created_at).toLocaleDateString();
+          message += `   📅 **Date:** ${date}\n`;
+        }
+        message += `\n`;
+      });
+      
+      return {
+        success: true,
+        message: message,
+        data: filteredLogs
+      };
     } catch (error) {
       return {
         success: false,
@@ -2914,60 +2824,56 @@ class RAGService {
    */
   async viewMedicineLogs(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/get_medicine`);
-      if (response.ok) {
-        const logs = await response.json();
-        
-        // Filter by week if specified
-        let filteredLogs = logs;
-        if (data.week_number) {
-          filteredLogs = logs.filter(log => log.week_number === data.week_number);
-        }
-        
-        // Limit results if specified
-        if (data.limit) {
-          filteredLogs = filteredLogs.slice(0, data.limit);
-        }
-        
-        if (filteredLogs.length === 0) {
-          return {
-            success: true,
-            message: `💊 **Medicine Logs**\n\nNo medicine entries found${data.week_number ? ` for week ${data.week_number}` : ''}.`
-          };
-        }
-        
-        let message = `💊 **Medicine Logs**\n\n`;
-        
-        // Add summary info
-        message += `📈 **Total Entries:** ${filteredLogs.length}\n`;
-        const uniqueMedicines = [...new Set(filteredLogs.map(log => log.name))];
-        if (uniqueMedicines.length > 1) {
-          message += `💊 **Medicines:** ${uniqueMedicines.join(', ')}\n\n`;
-        }
-        
-        // Format individual entries
-        filteredLogs.forEach((log, index) => {
-          message += `**${index + 1}. ${log.name}**\n`;
-          message += `   💊 **Medicine:** ${log.name}\n`;
-          message += `   📏 **Dose:** ${log.dose}\n`;
-          message += `   ⏰ **Time:** ${log.time}\n`;
-          message += `   📅 **Week:** ${log.week_number}\n`;
-          if (log.note) message += `   📝 **Note:** ${log.note}\n`;
-          if (log.created_at) {
-            const date = new Date(log.created_at).toLocaleDateString();
-            message += `   📅 **Date:** ${date}\n`;
-          }
-          message += `\n`;
-        });
-        
+      await offlineDatabaseService.initialize();
+      const logs = await offlineDatabaseService.getMedicineLogs(50);
+      
+      // Filter by week if specified
+      let filteredLogs = logs;
+      if (data.week_number) {
+        filteredLogs = logs.filter(log => log.week_number === data.week_number);
+      }
+      
+      // Limit results if specified
+      if (data.limit) {
+        filteredLogs = filteredLogs.slice(0, data.limit);
+      }
+      
+      if (filteredLogs.length === 0) {
         return {
           success: true,
-          message: message,
-          data: filteredLogs
+          message: `💊 **Medicine Logs**\n\nNo medicine entries found${data.week_number ? ` for week ${data.week_number}` : ''}.`
         };
-      } else {
-        throw new Error('Failed to fetch medicine logs');
       }
+      
+      let message = `💊 **Medicine Logs**\n\n`;
+      
+      // Add summary info
+      message += `📈 **Total Entries:** ${filteredLogs.length}\n`;
+      const uniqueMedicines = [...new Set(filteredLogs.map(log => log.name))];
+      if (uniqueMedicines.length > 1) {
+        message += `💊 **Medicines:** ${uniqueMedicines.join(', ')}\n\n`;
+      }
+      
+      // Format individual entries
+      filteredLogs.forEach((log, index) => {
+        message += `**${index + 1}. ${log.name}**\n`;
+        message += `   💊 **Medicine:** ${log.name}\n`;
+        message += `   📏 **Dose:** ${log.dose}\n`;
+        message += `   ⏰ **Time:** ${log.time}\n`;
+        message += `   📅 **Week:** ${log.week_number}\n`;
+        if (log.note) message += `   📝 **Note:** ${log.note}\n`;
+        if (log.created_at) {
+          const date = new Date(log.created_at).toLocaleDateString();
+          message += `   📅 **Date:** ${date}\n`;
+        }
+        message += `\n`;
+      });
+      
+      return {
+        success: true,
+        message: message,
+        data: filteredLogs
+      };
     } catch (error) {
       return {
         success: false,
@@ -2981,58 +2887,54 @@ class RAGService {
    */
   async viewSymptomsLogs(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/symptoms`);
-      if (response.ok) {
-        const logs = await response.json();
-        
-        // Filter by week if specified
-        let filteredLogs = logs;
-        if (data.week_number) {
-          filteredLogs = logs.filter(log => log.week_number === data.week_number);
-        }
-        
-        // Limit results if specified
-        if (data.limit) {
-          filteredLogs = filteredLogs.slice(0, data.limit);
-        }
-        
-        if (filteredLogs.length === 0) {
-          return {
-            success: true,
-            message: `🤒 **Symptoms Logs**\n\nNo symptom entries found${data.week_number ? ` for week ${data.week_number}` : ''}.`
-          };
-        }
-        
-        let message = `🤒 **Symptoms Logs**\n\n`;
-        
-        // Add summary info
-        message += `📈 **Total Entries:** ${filteredLogs.length}\n`;
-        const uniqueSymptoms = [...new Set(filteredLogs.map(log => log.symptom))];
-        if (uniqueSymptoms.length > 1) {
-          message += `🤒 **Symptoms:** ${uniqueSymptoms.join(', ')}\n\n`;
-        }
-        
-        // Format individual entries
-        filteredLogs.forEach((log, index) => {
-          message += `**${index + 1}. ${log.symptom}**\n`;
-          message += `   🤒 **Symptom:** ${log.symptom}\n`;
-          message += `   📅 **Week:** ${log.week_number}\n`;
-          if (log.note) message += `   📝 **Note:** ${log.note}\n`;
-          if (log.created_at) {
-            const date = new Date(log.created_at).toLocaleDateString();
-            message += `   📅 **Date:** ${date}\n`;
-          }
-          message += `\n`;
-        });
-        
+      await offlineDatabaseService.initialize();
+      const logs = await offlineDatabaseService.getSymptomLogs(50);
+      
+      // Filter by week if specified
+      let filteredLogs = logs;
+      if (data.week_number) {
+        filteredLogs = logs.filter(log => log.week_number === data.week_number);
+      }
+      
+      // Limit results if specified
+      if (data.limit) {
+        filteredLogs = filteredLogs.slice(0, data.limit);
+      }
+      
+      if (filteredLogs.length === 0) {
         return {
           success: true,
-          message: message,
-          data: filteredLogs
+          message: `🤒 **Symptoms Logs**\n\nNo symptom entries found${data.week_number ? ` for week ${data.week_number}` : ''}.`
         };
-      } else {
-        throw new Error('Failed to fetch symptoms logs');
       }
+      
+      let message = `🤒 **Symptoms Logs**\n\n`;
+      
+      // Add summary info
+      message += `📈 **Total Entries:** ${filteredLogs.length}\n`;
+      const uniqueSymptoms = [...new Set(filteredLogs.map(log => log.symptom))];
+      if (uniqueSymptoms.length > 1) {
+        message += `🤒 **Symptoms:** ${uniqueSymptoms.join(', ')}\n\n`;
+      }
+      
+      // Format individual entries
+      filteredLogs.forEach((log, index) => {
+        message += `**${index + 1}. ${log.symptom}**\n`;
+        message += `   🤒 **Symptom:** ${log.symptom}\n`;
+        message += `   📅 **Week:** ${log.week_number}\n`;
+        if (log.note) message += `   📝 **Note:** ${log.note}\n`;
+        if (log.created_at) {
+          const date = new Date(log.created_at).toLocaleDateString();
+          message += `   📅 **Date:** ${date}\n`;
+        }
+        message += `\n`;
+      });
+      
+      return {
+        success: true,
+        message: message,
+        data: filteredLogs
+      };
     } catch (error) {
       return {
         success: false,
@@ -3046,61 +2948,57 @@ class RAGService {
    */
   async viewBloodPressureLogs(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/blood_pressure`);
-      if (response.ok) {
-        const logs = await response.json();
-        
-        // Filter by week if specified
-        let filteredLogs = logs;
-        if (data.week_number) {
-          filteredLogs = logs.filter(log => log.week_number === data.week_number);
-        }
-        
-        // Limit results if specified
-        if (data.limit) {
-          filteredLogs = filteredLogs.slice(0, data.limit);
-        }
-        
-        if (filteredLogs.length === 0) {
-          return {
-            success: true,
-            message: `🩸 **Blood Pressure Logs**\n\nNo BP entries found${data.week_number ? ` for week ${data.week_number}` : ''}.`
-          };
-        }
-        
-        let message = `🩸 **Blood Pressure Logs**\n\n`;
-        
-        // Add summary info
-        message += `📈 **Total Entries:** ${filteredLogs.length}\n`;
-        if (filteredLogs.length > 1) {
-          const readings = filteredLogs.map(log => ({ systolic: log.systolic, diastolic: log.diastolic }));
-          const avgSystolic = (readings.reduce((a, b) => a + b.systolic, 0) / readings.length).toFixed(0);
-          const avgDiastolic = (readings.reduce((a, b) => a + b.diastolic, 0) / readings.length).toFixed(0);
-          message += `📊 **Average:** ${avgSystolic}/${avgDiastolic} mmHg\n\n`;
-        }
-        
-        // Format individual entries
-        filteredLogs.forEach((log, index) => {
-          message += `**${index + 1}. ${log.systolic}/${log.diastolic} mmHg**\n`;
-          message += `   🩸 **Reading:** ${log.systolic}/${log.diastolic} mmHg\n`;
-          message += `   ⏰ **Time:** ${log.time}\n`;
-          message += `   📅 **Week:** ${log.week_number}\n`;
-          if (log.note) message += `   📝 **Note:** ${log.note}\n`;
-          if (log.created_at) {
-            const date = new Date(log.created_at).toLocaleDateString();
-            message += `   📅 **Date:** ${date}\n`;
-          }
-          message += `\n`;
-        });
-        
+      await offlineDatabaseService.initialize();
+      const logs = await offlineDatabaseService.getBPLogs(50);
+      
+      // Filter by week if specified
+      let filteredLogs = logs;
+      if (data.week_number) {
+        filteredLogs = logs.filter(log => log.week_number === data.week_number);
+      }
+      
+      // Limit results if specified
+      if (data.limit) {
+        filteredLogs = filteredLogs.slice(0, data.limit);
+      }
+      
+      if (filteredLogs.length === 0) {
         return {
           success: true,
-          message: message,
-          data: filteredLogs
+          message: `🩸 **Blood Pressure Logs**\n\nNo BP entries found${data.week_number ? ` for week ${data.week_number}` : ''}.`
         };
-      } else {
-        throw new Error('Failed to fetch blood pressure logs');
       }
+      
+      let message = `🩸 **Blood Pressure Logs**\n\n`;
+      
+      // Add summary info
+      message += `📈 **Total Entries:** ${filteredLogs.length}\n`;
+      if (filteredLogs.length > 1) {
+        const readings = filteredLogs.map(log => ({ systolic: log.systolic, diastolic: log.diastolic }));
+        const avgSystolic = (readings.reduce((a, b) => a + b.systolic, 0) / readings.length).toFixed(0);
+        const avgDiastolic = (readings.reduce((a, b) => a + b.diastolic, 0) / readings.length).toFixed(0);
+        message += `📊 **Average:** ${avgSystolic}/${avgDiastolic} mmHg\n\n`;
+      }
+      
+      // Format individual entries
+      filteredLogs.forEach((log, index) => {
+        message += `**${index + 1}. ${log.systolic}/${log.diastolic} mmHg**\n`;
+        message += `   🩸 **Reading:** ${log.systolic}/${log.diastolic} mmHg\n`;
+        message += `   ⏰ **Time:** ${log.time}\n`;
+        message += `   📅 **Week:** ${log.week_number}\n`;
+        if (log.note) message += `   📝 **Note:** ${log.note}\n`;
+        if (log.created_at) {
+          const date = new Date(log.created_at).toLocaleDateString();
+          message += `   📅 **Date:** ${date}\n`;
+        }
+        message += `\n`;
+      });
+      
+      return {
+        success: true,
+        message: message,
+        data: filteredLogs
+      };
     } catch (error) {
       return {
         success: false,
@@ -3114,60 +3012,56 @@ class RAGService {
    */
   async viewDischargeLogs(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/discharge`);
-      if (response.ok) {
-        const logs = await response.json();
-        
-        // Filter by week if specified
-        let filteredLogs = logs;
-        if (data.week_number) {
-          filteredLogs = logs.filter(log => log.week_number === data.week_number);
-        }
-        
-        // Limit results if specified
-        if (data.limit) {
-          filteredLogs = filteredLogs.slice(0, data.limit);
-        }
-        
-        if (filteredLogs.length === 0) {
-          return {
-            success: true,
-            message: `🩸 **Discharge Logs**\n\nNo discharge entries found${data.week_number ? ` for week ${data.week_number}` : ''}.`
-          };
-        }
-        
-        let message = `🩸 **Discharge Logs**\n\n`;
-        
-        // Add summary info
-        message += `📈 **Total Entries:** ${filteredLogs.length}\n`;
-        const uniqueTypes = [...new Set(filteredLogs.map(log => log.type))];
-        if (uniqueTypes.length > 1) {
-          message += `🩸 **Types:** ${uniqueTypes.join(', ')}\n\n`;
-        }
-        
-        // Format individual entries
-        filteredLogs.forEach((log, index) => {
-          message += `**${index + 1}. ${log.type}**\n`;
-          message += `   🩸 **Type:** ${log.type}\n`;
-          message += `   🎨 **Color:** ${log.color}\n`;
-          if (log.bleeding === 'yes') message += `   ⚠️ **Bleeding:** Yes\n`;
-          message += `   📅 **Week:** ${log.week_number}\n`;
-          if (log.note) message += `   📝 **Note:** ${log.note}\n`;
-          if (log.created_at) {
-            const date = new Date(log.created_at).toLocaleDateString();
-            message += `   📅 **Date:** ${date}\n`;
-          }
-          message += `\n`;
-        });
-        
+      await offlineDatabaseService.initialize();
+      const logs = await offlineDatabaseService.getDischargeLogs(50);
+      
+      // Filter by week if specified
+      let filteredLogs = logs;
+      if (data.week_number) {
+        filteredLogs = logs.filter(log => log.week_number === data.week_number);
+      }
+      
+      // Limit results if specified
+      if (data.limit) {
+        filteredLogs = filteredLogs.slice(0, data.limit);
+      }
+      
+      if (filteredLogs.length === 0) {
         return {
           success: true,
-          message: message,
-          data: filteredLogs
+          message: `🩸 **Discharge Logs**\n\nNo discharge entries found${data.week_number ? ` for week ${data.week_number}` : ''}.`
         };
-      } else {
-        throw new Error('Failed to fetch discharge logs');
       }
+      
+      let message = `🩸 **Discharge Logs**\n\n`;
+      
+      // Add summary info
+      message += `📈 **Total Entries:** ${filteredLogs.length}\n`;
+      const uniqueTypes = [...new Set(filteredLogs.map(log => log.type))];
+      if (uniqueTypes.length > 1) {
+        message += `🩸 **Types:** ${uniqueTypes.join(', ')}\n\n`;
+      }
+      
+      // Format individual entries
+      filteredLogs.forEach((log, index) => {
+        message += `**${index + 1}. ${log.type}**\n`;
+        message += `   🩸 **Type:** ${log.type}\n`;
+        message += `   🎨 **Color:** ${log.color}\n`;
+        if (log.bleeding === 'yes') message += `   ⚠️ **Bleeding:** Yes\n`;
+        message += `   📅 **Week:** ${log.week_number}\n`;
+        if (log.note) message += `   📝 **Note:** ${log.note}\n`;
+        if (log.created_at) {
+          const date = new Date(log.created_at).toLocaleDateString();
+          message += `   📅 **Date:** ${date}\n`;
+        }
+        message += `\n`;
+      });
+      
+      return {
+        success: true,
+        message: message,
+        data: filteredLogs
+      };
     } catch (error) {
       return {
         success: false,
@@ -3181,22 +3075,15 @@ class RAGService {
    */
   async undoAction(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/undo_last_action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action_type: data.action_type || 'last'
-        })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
+      const result = await actionExecutor.undoLastAction(userContext);
+      
+      if (result.success) {
         return {
           success: true,
-          message: `↩️ **Action undone successfully!**\n\n**Undone:** ${result.action_description || 'Last action'}\n**Type:** ${result.action_type || 'Unknown'}`
+          message: `↩️ **Action undone successfully!**\n\n**Undone:** ${result.undoneAction || 'Last action'}`
         };
       } else {
-        throw new Error('Failed to undo action');
+        throw new Error(result.error || 'Failed to undo action');
       }
     } catch (error) {
       return {
@@ -3213,27 +3100,31 @@ class RAGService {
    */
   async updateMedicine(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/update_medicine`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          medicine_name: data.medicine_name,
-          dose: data.dose,
-          frequency: data.frequency,
-          start_date: data.start_date,
-          end_date: data.end_date,
-          note: data.note
-        })
-      });
-
-      if (response.ok) {
+      await offlineDatabaseService.initialize();
+      const logs = await offlineDatabaseService.getMedicineLogs(100);
+      const matchingLogs = logs.filter(log => log.name && log.name.toLowerCase().includes(data.medicine_name.toLowerCase()));
+      
+      if (matchingLogs.length === 0) {
         return {
-          success: true,
-          message: `✅ **Medicine Updated Successfully**\n\n📋 **${data.medicine_name}** has been updated with new information.`
+          success: false,
+          message: `❌ No medicine found with name "${data.medicine_name}".`
         };
-      } else {
-        throw new Error('Failed to update medicine');
       }
+      
+      const logToUpdate = matchingLogs[0];
+      
+      await offlineDatabaseService.updateMedicine(logToUpdate.id, {
+        name: data.medicine_name,
+        dose: data.dose || logToUpdate.dose,
+        time: data.frequency || logToUpdate.time,
+        note: data.note || logToUpdate.note
+      });
+      await offlineContextCache.updateCache(DEFAULT_USER_ID, 'medicine', 'update');
+
+      return {
+        success: true,
+        message: `✅ **Medicine Updated Successfully**\n\n📋 **${data.medicine_name}** has been updated with new information.`
+      };
     } catch (error) {
       return {
         success: false,
@@ -3247,23 +3138,25 @@ class RAGService {
    */
   async deleteMedicine(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/delete_medicine`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          medicine_name: data.medicine_name,
-          date: data.date
-        })
-      });
-
-      if (response.ok) {
+      await offlineDatabaseService.initialize();
+      const logs = await offlineDatabaseService.getMedicineLogs(100);
+      const matchingLogs = logs.filter(log => log.name && log.name.toLowerCase().includes(data.medicine_name.toLowerCase()));
+      
+      if (matchingLogs.length === 0) {
         return {
-          success: true,
-          message: `✅ **Medicine Deleted Successfully**\n\n🗑️ **${data.medicine_name}** entry has been removed from your records.`
+          success: false,
+          message: `❌ No medicine found with name "${data.medicine_name}".`
         };
-      } else {
-        throw new Error('Failed to delete medicine');
       }
+      
+      const logToDelete = matchingLogs[0];
+      await offlineDatabaseService.deleteMedicine(logToDelete.id);
+      await offlineContextCache.updateCache(DEFAULT_USER_ID, 'medicine', 'delete');
+
+      return {
+        success: true,
+        message: `✅ **Medicine Deleted Successfully**\n\n🗑️ **${data.medicine_name}** entry has been removed from your records.`
+      };
     } catch (error) {
       return {
         success: false,
@@ -3279,26 +3172,23 @@ class RAGService {
    */
   async updateBloodPressure(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/update_blood_pressure`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      await offlineDatabaseService.initialize();
+      const logs = await offlineDatabaseService.getBPLogs(100);
+      const logToUpdate = logs.find(log => log.date === data.date || log.time === data.time);
+      
+      if (logToUpdate) {
+        await offlineDatabaseService.updateBPLog(logToUpdate.id, {
           systolic: data.systolic,
           diastolic: data.diastolic,
-          date: data.date,
-          time: data.time,
           note: data.note
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Blood Pressure Updated Successfully**\n\n🩺 **${data.systolic}/${data.diastolic}** reading has been updated.`
-        };
-      } else {
-        throw new Error('Failed to update blood pressure');
+        });
+        await offlineContextCache.updateCache(DEFAULT_USER_ID, 'blood_pressure', 'update');
       }
+
+      return {
+        success: true,
+        message: `✅ **Blood Pressure Updated Successfully**\n\n🩺 **${data.systolic}/${data.diastolic}** reading has been updated.`
+      };
     } catch (error) {
       return {
         success: false,
@@ -3312,23 +3202,19 @@ class RAGService {
    */
   async deleteBloodPressure(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/delete_blood_pressure`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: data.date,
-          time: data.time
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Blood Pressure Deleted Successfully**\n\n🗑️ Blood pressure reading for ${data.date} has been removed.`
-        };
-      } else {
-        throw new Error('Failed to delete blood pressure');
+      await offlineDatabaseService.initialize();
+      const logs = await offlineDatabaseService.getBPLogs(100);
+      const logToDelete = logs.find(log => log.date === data.date || log.time === data.time);
+      
+      if (logToDelete) {
+        await offlineDatabaseService.deleteBPLog(logToDelete.id);
+        await offlineContextCache.updateCache(DEFAULT_USER_ID, 'blood_pressure', 'delete');
       }
+
+      return {
+        success: true,
+        message: `✅ **Blood Pressure Deleted Successfully**\n\n🗑️ Blood pressure reading for ${data.date} has been removed.`
+      };
     } catch (error) {
       return {
         success: false,
@@ -3344,25 +3230,22 @@ class RAGService {
    */
   async updateDischarge(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/update_discharge`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          discharge_type: data.discharge_type,
-          date: data.date,
-          time: data.time,
+      await offlineDatabaseService.initialize();
+      const logs = await offlineDatabaseService.getDischargeLogs(100);
+      const logToUpdate = logs.find(log => log.date === data.date || log.time === data.time);
+      
+      if (logToUpdate) {
+        await offlineDatabaseService.updateDischargeLog(logToUpdate.id, {
+          type: data.discharge_type,
           note: data.note
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Discharge Updated Successfully**\n\n📋 **${data.discharge_type}** entry has been updated.`
-        };
-      } else {
-        throw new Error('Failed to update discharge');
+        });
+        await offlineContextCache.updateCache(DEFAULT_USER_ID, 'discharge', 'update');
       }
+
+      return {
+        success: true,
+        message: `✅ **Discharge Updated Successfully**\n\n📋 **${data.discharge_type}** entry has been updated.`
+      };
     } catch (error) {
       return {
         success: false,
@@ -3376,23 +3259,19 @@ class RAGService {
    */
   async deleteDischarge(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/delete_discharge`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: data.date,
-          time: data.time
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Discharge Deleted Successfully**\n\n🗑️ Discharge entry for ${data.date} has been removed.`
-        };
-      } else {
-        throw new Error('Failed to delete discharge');
+      await offlineDatabaseService.initialize();
+      const logs = await offlineDatabaseService.getDischargeLogs(100);
+      const logToDelete = logs.find(log => log.date === data.date || log.time === data.time);
+      
+      if (logToDelete) {
+        await offlineDatabaseService.deleteDischargeLog(logToDelete.id);
+        await offlineContextCache.updateCache(DEFAULT_USER_ID, 'discharge', 'delete');
       }
+
+      return {
+        success: true,
+        message: `✅ **Discharge Deleted Successfully**\n\n🗑️ Discharge entry for ${data.date} has been removed.`
+      };
     } catch (error) {
       return {
         success: false,
@@ -3408,25 +3287,22 @@ class RAGService {
    */
   async updateSymptoms(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/update_symptoms`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      await offlineDatabaseService.initialize();
+      const logs = await offlineDatabaseService.getSymptomLogs(100);
+      const logToUpdate = logs.find(log => log.date === data.date || log.time === data.time);
+      
+      if (logToUpdate) {
+        await offlineDatabaseService.updateSymptom(logToUpdate.id, {
           symptom: data.symptom,
-          date: data.date,
-          time: data.time,
           note: data.note
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Symptoms Updated Successfully**\n\n🤒 **${data.symptom}** entry has been updated.`
-        };
-      } else {
-        throw new Error('Failed to update symptoms');
+        });
+        await offlineContextCache.updateCache(DEFAULT_USER_ID, 'symptoms', 'update');
       }
+
+      return {
+        success: true,
+        message: `✅ **Symptoms Updated Successfully**\n\n🤒 **${data.symptom}** entry has been updated.`
+      };
     } catch (error) {
       return {
         success: false,
@@ -3440,23 +3316,19 @@ class RAGService {
    */
   async deleteSymptoms(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/delete_symptoms`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: data.date,
-          time: data.time
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Symptoms Deleted Successfully**\n\n🗑️ Symptoms entry for ${data.date} has been removed.`
-        };
-      } else {
-        throw new Error('Failed to delete symptoms');
+      await offlineDatabaseService.initialize();
+      const logs = await offlineDatabaseService.getSymptomLogs(100);
+      const logToDelete = logs.find(log => log.date === data.date || log.time === data.time);
+      
+      if (logToDelete) {
+        await offlineDatabaseService.deleteSymptom(logToDelete.id);
+        await offlineContextCache.updateCache(DEFAULT_USER_ID, 'symptoms', 'delete');
       }
+
+      return {
+        success: true,
+        message: `✅ **Symptoms Deleted Successfully**\n\n🗑️ Symptoms entry for ${data.date} has been removed.`
+      };
     } catch (error) {
       return {
         success: false,
@@ -3472,25 +3344,23 @@ class RAGService {
    */
   async updateWeight(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/update_weight`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      await offlineDatabaseService.initialize();
+      const logs = await offlineDatabaseService.getWeightLogs(100);
+      const logToUpdate = logs.find(log => log.date === data.date || log.time === data.time);
+      
+      if (logToUpdate) {
+        await offlineDatabaseService.updateWeight(logToUpdate.id, {
           weight: data.weight,
-          date: data.date,
-          week: data.week,
+          week_number: data.week || logToUpdate.week_number,
           note: data.note
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Weight Updated Successfully**\n\n⚖️ **${data.weight}kg** entry has been updated.`
-        };
-      } else {
-        throw new Error('Failed to update weight');
+        });
+        await offlineContextCache.updateCache(DEFAULT_USER_ID, 'weight', 'update');
       }
+
+      return {
+        success: true,
+        message: `✅ **Weight Updated Successfully**\n\n⚖️ **${data.weight}kg** entry has been updated.`
+      };
     } catch (error) {
       return {
         success: false,
@@ -3504,23 +3374,19 @@ class RAGService {
    */
   async deleteWeight(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/delete_weight`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: data.date,
-          time: data.time
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Weight Deleted Successfully**\n\n🗑️ Weight entry for ${data.date} has been removed.`
-        };
-      } else {
-        throw new Error('Failed to delete weight');
+      await offlineDatabaseService.initialize();
+      const logs = await offlineDatabaseService.getWeightLogs(100);
+      const logToDelete = logs.find(log => log.date === data.date || log.time === data.time);
+      
+      if (logToDelete) {
+        await offlineDatabaseService.deleteWeight(logToDelete.id);
+        await offlineContextCache.updateCache(DEFAULT_USER_ID, 'weight', 'delete');
       }
+
+      return {
+        success: true,
+        message: `✅ **Weight Deleted Successfully**\n\n🗑️ Weight entry for ${data.date} has been removed.`
+      };
     } catch (error) {
       return {
         success: false,
@@ -3536,25 +3402,23 @@ class RAGService {
    */
   async updateMood(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/update_mood`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      await offlineDatabaseService.initialize();
+      const logs = await offlineDatabaseService.getMoodLogs(100);
+      const logToUpdate = logs.find(log => log.date === data.date || log.time === data.time);
+      
+      if (logToUpdate) {
+        await offlineDatabaseService.updateMood(logToUpdate.id, {
           mood: data.mood,
           intensity: data.intensity,
-          date: data.date,
           note: data.note
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Mood Updated Successfully**\n\n😊 **${data.mood}** entry has been updated.`
-        };
-      } else {
-        throw new Error('Failed to update mood');
+        });
+        await offlineContextCache.updateCache(DEFAULT_USER_ID, 'mood', 'update');
       }
+
+      return {
+        success: true,
+        message: `✅ **Mood Updated Successfully**\n\n😊 **${data.mood}** entry has been updated.`
+      };
     } catch (error) {
       return {
         success: false,
@@ -3568,23 +3432,19 @@ class RAGService {
    */
   async deleteMood(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/delete_mood`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: data.date,
-          time: data.time
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Mood Deleted Successfully**\n\n🗑️ Mood entry for ${data.date} has been removed.`
-        };
-      } else {
-        throw new Error('Failed to delete mood');
+      await offlineDatabaseService.initialize();
+      const logs = await offlineDatabaseService.getMoodLogs(100);
+      const logToDelete = logs.find(log => log.date === data.date || log.time === data.time);
+      
+      if (logToDelete) {
+        await offlineDatabaseService.deleteMood(logToDelete.id);
+        await offlineContextCache.updateCache(DEFAULT_USER_ID, 'mood', 'delete');
       }
+
+      return {
+        success: true,
+        message: `✅ **Mood Deleted Successfully**\n\n🗑️ Mood entry for ${data.date} has been removed.`
+      };
     } catch (error) {
       return {
         success: false,
@@ -3600,27 +3460,25 @@ class RAGService {
    */
   async updateSleep(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/update_sleep`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      await offlineDatabaseService.initialize();
+      const logs = await offlineDatabaseService.getSleepLogs(100);
+      const logToUpdate = logs.find(log => log.date === data.date || log.time === data.time);
+      
+      if (logToUpdate) {
+        await offlineDatabaseService.updateSleep(logToUpdate.id, {
           duration: data.duration,
           bedtime: data.bedtime,
           wake_time: data.wake_time,
           quality: data.quality,
-          date: data.date,
           note: data.note
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Sleep Updated Successfully**\n\n😴 **${data.duration} hours** sleep entry has been updated.`
-        };
-      } else {
-        throw new Error('Failed to update sleep');
+        });
+        await offlineContextCache.updateCache(DEFAULT_USER_ID, 'sleep', 'update');
       }
+
+      return {
+        success: true,
+        message: `✅ **Sleep Updated Successfully**\n\n😴 **${data.duration} hours** sleep entry has been updated.`
+      };
     } catch (error) {
       return {
         success: false,
@@ -3634,23 +3492,19 @@ class RAGService {
    */
   async deleteSleep(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/delete_sleep`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: data.date,
-          time: data.time
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Sleep Deleted Successfully**\n\n🗑️ Sleep entry for ${data.date} has been removed.`
-        };
-      } else {
-        throw new Error('Failed to delete sleep');
+      await offlineDatabaseService.initialize();
+      const logs = await offlineDatabaseService.getSleepLogs(100);
+      const logToDelete = logs.find(log => log.date === data.date || log.time === data.time);
+      
+      if (logToDelete) {
+        await offlineDatabaseService.deleteSleep(logToDelete.id);
+        await offlineContextCache.updateCache(DEFAULT_USER_ID, 'sleep', 'delete');
       }
+
+      return {
+        success: true,
+        message: `✅ **Sleep Deleted Successfully**\n\n🗑️ Sleep entry for ${data.date} has been removed.`
+      };
     } catch (error) {
       return {
         success: false,

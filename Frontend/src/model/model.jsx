@@ -3,7 +3,7 @@ import { initLlama, releaseAllLlama } from "llama.rn";
 import RNFS from "react-native-fs";
 import axios from "axios";
 import DeviceInfo from "react-native-device-info";
-import {MODEL_NAME, HF_TO_GGUF, GGUF_FILE} from "@env";
+import { MODEL_NAME, HF_TO_GGUF, GGUF_FILE, LLM_CONFIG } from "../config/config";
 
 let context = null;
 

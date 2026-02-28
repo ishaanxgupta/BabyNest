@@ -8,9 +8,10 @@ import {
   Alert,
 } from 'react-native';
 import {TextInput, Button, Card, Portal, Dialog} from 'react-native-paper';
-import {BASE_URL} from '@env';
+import {BASE_URL} from '../config/config';
 import HeaderWithBack from '../Components/HeaderWithBack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import {offlineDatabaseService, offlineContextCache} from '../services/offline';
 
 export default function MedicineScreen() {
   const [week, setWeek] = useState('');
@@ -26,9 +27,9 @@ export default function MedicineScreen() {
 
   const fetchMedicineHistory = async () => {
     try {
-      const res = await fetch(`${BASE_URL}/get_medicine`);
-      const data = await res.json();
-      setHistory(data.reverse());
+      await offlineDatabaseService.initialize();
+      const data = await offlineDatabaseService.getMedicineLogs(50);
+      setHistory(data);
     } catch (err) {
       console.error('Failed to fetch medicine records:', err);
     }
@@ -51,11 +52,14 @@ export default function MedicineScreen() {
     }
 
     try {
-      await fetch(`${BASE_URL}/set_medicine`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({week_number: week, name, dose, time, note}),
+      await offlineDatabaseService.logMedicine({
+        week_number: parseInt(week),
+        name: name,
+        dose: dose,
+        time: time,
+        note: note,
       });
+      await offlineContextCache.updateCache('default', 'medicine', 'create');
       setWeek('');
       setName('');
       setDose('');
@@ -75,17 +79,14 @@ export default function MedicineScreen() {
 
   const handleUpdate = async () => {
     try {
-      await fetch(`${BASE_URL}/medicine/${editData.id}`, {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          week_number: editData.week_number,
-          name: editData.name,
-          dose: editData.dose,
-          time: editData.time,
-          note: editData.note,
-        }),
+      await offlineDatabaseService.updateMedicine(editData.id, {
+        week_number: editData.week_number,
+        name: editData.name,
+        dose: editData.dose,
+        time: editData.time,
+        note: editData.note,
       });
+      await offlineContextCache.updateCache('default', 'medicine', 'update');
       setEditVisible(false);
       setEditData(null);
       fetchMedicineHistory();
@@ -109,9 +110,8 @@ export default function MedicineScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await fetch(`${BASE_URL}/medicine/${id}`, {
-                method: 'DELETE',
-              });
+              await offlineDatabaseService.deleteMedicine(id);
+              await offlineContextCache.updateCache('default', 'medicine', 'delete');
               fetchMedicineHistory();
             } catch (err) {
               console.error('Failed to delete medicine:', err);

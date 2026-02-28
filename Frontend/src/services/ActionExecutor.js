@@ -3,7 +3,8 @@
  * Handles structured action execution with validation and error handling
  */
 
-import { BASE_URL } from '@env';
+import { BASE_URL } from '../config/config';
+import { offlineDatabaseService, offlineContextCache } from './offline';
 
 class ActionExecutor {
   constructor() {
@@ -193,24 +194,17 @@ class ActionExecutor {
         week_number: userContext.current_week || 12
       };
 
-      const response = await fetch(`${BASE_URL}/create_appointment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(appointmentData)
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        return {
-          success: true,
-          message: `✅ Appointment "${payload.title}" created successfully!\n\n📅 Date: ${appointmentData.appointment_date}\n⏰ Time: ${appointmentData.appointment_time}\n📍 Location: ${appointmentData.location}`,
-          data: result,
-          actionType: 'create_appointment',
-          appointmentId: result.id || result.appointment_id // Include ID for rollback
-        };
-      } else {
-        throw new Error('Failed to create appointment');
-      }
+      await offlineDatabaseService.initialize();
+      const result = await offlineDatabaseService.createAppointment(appointmentData);
+      await offlineContextCache.updateCache('default', 'appointments', 'create');
+      
+      return {
+        success: true,
+        message: `✅ Appointment "${payload.title}" created successfully!\n\n📅 Date: ${appointmentData.appointment_date}\n⏰ Time: ${appointmentData.appointment_time}\n📍 Location: ${appointmentData.location}`,
+        data: result,
+        actionType: 'create_appointment',
+        appointmentId: result.id || result.appointment_id
+      };
     } catch (error) {
       return {
         success: false,
@@ -242,21 +236,15 @@ class ActionExecutor {
         updateData.appointment_time = this.formatTime(payload.startISO);
       }
 
-      const response = await fetch(`${BASE_URL}/update_appointment/${payload.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData)
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ Appointment updated successfully!`,
-          actionType: 'update_appointment'
-        };
-      } else {
-        throw new Error('Failed to update appointment');
-      }
+      await offlineDatabaseService.initialize();
+      await offlineDatabaseService.updateAppointment(payload.id, updateData);
+      await offlineContextCache.updateCache('default', 'appointments', 'update');
+      
+      return {
+        success: true,
+        message: `✅ Appointment updated successfully!`,
+        actionType: 'update_appointment'
+      };
     } catch (error) {
       return {
         success: false,
@@ -279,19 +267,15 @@ class ActionExecutor {
         };
       }
 
-      const response = await fetch(`${BASE_URL}/delete_appointment/${payload.id}`, {
-        method: 'DELETE'
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ Appointment deleted successfully!`,
-          actionType: 'delete_appointment'
-        };
-      } else {
-        throw new Error('Failed to delete appointment');
-      }
+      await offlineDatabaseService.initialize();
+      await offlineDatabaseService.deleteAppointment(payload.id);
+      await offlineContextCache.updateCache('default', 'appointments', 'delete');
+      
+      return {
+        success: true,
+        message: `✅ Appointment deleted successfully!`,
+        actionType: 'delete_appointment'
+      };
     } catch (error) {
       return {
         success: false,
@@ -320,23 +304,16 @@ class ActionExecutor {
         note: payload.note || ''
       };
 
-      const response = await fetch(`${BASE_URL}/weight`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(weightData)
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        return {
-          success: true,
-          message: `⚖️ Weight logged successfully!\n\n**Weight:** ${payload.weight}\n**Week:** ${weightData.week_number}`,
-          actionType: 'create_weight',
-          weightId: result.id || result.weight_id // Include ID for rollback
-        };
-      } else {
-        throw new Error('Failed to log weight');
-      }
+      await offlineDatabaseService.initialize();
+      const result = await offlineDatabaseService.logWeight(weightData);
+      await offlineContextCache.updateCache('default', 'weight', 'create');
+      
+      return {
+        success: true,
+        message: `⚖️ Weight logged successfully!\n\n**Weight:** ${payload.weight}\n**Week:** ${weightData.week_number}`,
+        actionType: 'create_weight',
+        weightId: result.id || result.weight_id
+      };
     } catch (error) {
       return {
         success: false,
@@ -366,23 +343,16 @@ class ActionExecutor {
         week_number: userContext.current_week || 12
       };
 
-      const response = await fetch(`${BASE_URL}/log_mood`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(moodData)
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        return {
-          success: true,
-          message: `😊 Mood logged successfully!\n\n**Mood:** ${payload.mood}\n**Intensity:** ${moodData.intensity}`,
-          actionType: 'create_mood',
-          moodId: result.id || result.mood_id // Include ID for rollback
-        };
-      } else {
-        throw new Error('Failed to log mood');
-      }
+      await offlineDatabaseService.initialize();
+      const result = await offlineDatabaseService.logMood(moodData);
+      await offlineContextCache.updateCache('default', 'mood', 'create');
+      
+      return {
+        success: true,
+        message: `😊 Mood logged successfully!\n\n**Mood:** ${payload.mood}\n**Intensity:** ${moodData.intensity}`,
+        actionType: 'create_mood',
+        moodId: result.id || result.mood_id
+      };
     } catch (error) {
       return {
         success: false,
@@ -414,23 +384,16 @@ class ActionExecutor {
         week_number: userContext.current_week || 12
       };
 
-      const response = await fetch(`${BASE_URL}/log_sleep`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sleepData)
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        return {
-          success: true,
-          message: `😴 Sleep logged successfully!\n\n**Duration:** ${payload.duration} hours\n**Quality:** ${sleepData.quality}`,
-          actionType: 'create_sleep',
-          sleepId: result.id || result.sleep_id // Include ID for rollback
-        };
-      } else {
-        throw new Error('Failed to log sleep');
-      }
+      await offlineDatabaseService.initialize();
+      const result = await offlineDatabaseService.logSleep(sleepData);
+      await offlineContextCache.updateCache('default', 'sleep', 'create');
+      
+      return {
+        success: true,
+        message: `😴 Sleep logged successfully!\n\n**Duration:** ${payload.duration} hours\n**Quality:** ${sleepData.quality}`,
+        actionType: 'create_sleep',
+        sleepId: result.id || result.sleep_id
+      };
     } catch (error) {
       return {
         success: false,
@@ -459,23 +422,16 @@ class ActionExecutor {
         note: payload.note || ''
       };
 
-      const response = await fetch(`${BASE_URL}/symptoms`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(symptomData)
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        return {
-          success: true,
-          message: `🤒 Symptom logged successfully!\n\n**Symptom:** ${payload.symptom}`,
-          actionType: 'create_symptom',
-          symptomId: result.id || result.symptom_id // Include ID for rollback
-        };
-      } else {
-        throw new Error('Failed to log symptom');
-      }
+      await offlineDatabaseService.initialize();
+      const result = await offlineDatabaseService.logSymptom(symptomData);
+      await offlineContextCache.updateCache('default', 'symptoms', 'create');
+      
+      return {
+        success: true,
+        message: `🤒 Symptom logged successfully!\n\n**Symptom:** ${payload.symptom}`,
+        actionType: 'create_symptom',
+        symptomId: result.id || result.symptom_id
+      };
     } catch (error) {
       return {
         success: false,
@@ -506,23 +462,16 @@ class ActionExecutor {
         note: payload.note || ''
       };
 
-      const response = await fetch(`${BASE_URL}/medicine`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(medicineData)
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        return {
-          success: true,
-          message: `💊 Medicine logged successfully!\n\n**Medicine:** ${payload.name}\n**Dose:** ${medicineData.dose}`,
-          actionType: 'create_medicine',
-          medicineId: result.id || result.medicine_id // Include ID for rollback
-        };
-      } else {
-        throw new Error('Failed to log medicine');
-      }
+      await offlineDatabaseService.initialize();
+      const result = await offlineDatabaseService.logMedicine(medicineData);
+      await offlineContextCache.updateCache('default', 'medicine', 'create');
+      
+      return {
+        success: true,
+        message: `💊 Medicine logged successfully!\n\n**Medicine:** ${payload.name}\n**Dose:** ${medicineData.dose}`,
+        actionType: 'create_medicine',
+        medicineId: result.id || result.medicine_id
+      };
     } catch (error) {
       return {
         success: false,
@@ -552,23 +501,16 @@ class ActionExecutor {
         note: payload.note || ''
       };
 
-      const response = await fetch(`${BASE_URL}/blood_pressure`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bpData)
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        return {
-          success: true,
-          message: `🩸 Blood pressure logged successfully!\n\n**BP:** ${payload.systolic}/${payload.diastolic} mmHg`,
-          actionType: 'create_blood_pressure',
-          bpId: result.id || result.bp_id // Include ID for rollback
-        };
-      } else {
-        throw new Error('Failed to log blood pressure');
-      }
+      await offlineDatabaseService.initialize();
+      const result = await offlineDatabaseService.logBP(bpData);
+      await offlineContextCache.updateCache('default', 'blood_pressure', 'create');
+      
+      return {
+        success: true,
+        message: `🩸 Blood pressure logged successfully!\n\n**BP:** ${payload.systolic}/${payload.diastolic} mmHg`,
+        actionType: 'create_blood_pressure',
+        bpId: result.id || result.bp_id
+      };
     } catch (error) {
       return {
         success: false,
@@ -597,23 +539,38 @@ class ActionExecutor {
         chart_type: payload.chart_type || 'summary'
       };
 
-      const response = await fetch(`${BASE_URL}/get_analytics`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(queryData)
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        return {
-          success: true,
-          message: `📊 Analytics retrieved successfully!`,
-          data: result,
-          actionType: 'query_stats'
-        };
-      } else {
-        throw new Error('Failed to fetch analytics');
+      await offlineDatabaseService.initialize();
+      let analyticsData = [];
+      
+      switch (payload.metric) {
+        case 'weight':
+          analyticsData = await offlineDatabaseService.getWeightLogs(50);
+          break;
+        case 'mood':
+          analyticsData = await offlineDatabaseService.getMoodLogs(50);
+          break;
+        case 'sleep':
+          analyticsData = await offlineDatabaseService.getSleepLogs(50);
+          break;
+        case 'symptoms':
+          analyticsData = await offlineDatabaseService.getSymptomLogs(50);
+          break;
+        case 'blood_pressure':
+          analyticsData = await offlineDatabaseService.getBPLogs(50);
+          break;
+        case 'medicine':
+          analyticsData = await offlineDatabaseService.getMedicineLogs(50);
+          break;
+        default:
+          analyticsData = [];
       }
+      
+      return {
+        success: true,
+        message: `📊 Analytics retrieved successfully!`,
+        data: analyticsData,
+        actionType: 'query_stats'
+      };
     } catch (error) {
       return {
         success: false,
@@ -756,16 +713,12 @@ class ActionExecutor {
   async rollbackCreateAppointment(result) {
     try {
       if (result.appointmentId) {
-        const response = await fetch(`${BASE_URL}/appointments/${result.appointmentId}`, {
-          method: 'DELETE'
-        });
-        
-        if (response.ok) {
-          return {
-            success: true,
-            message: 'Appointment creation rolled back - appointment deleted'
-          };
-        }
+        await offlineDatabaseService.deleteAppointment(result.appointmentId);
+        await offlineContextCache.updateCache('default', 'appointments', 'delete');
+        return {
+          success: true,
+          message: 'Appointment creation rolled back - appointment deleted'
+        };
       }
       return {
         success: false,
@@ -782,18 +735,12 @@ class ActionExecutor {
   async rollbackUpdateAppointment(originalPayload, result) {
     try {
       if (result.appointmentId && result.previousData) {
-        const response = await fetch(`${BASE_URL}/appointments/${result.appointmentId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(result.previousData)
-        });
-        
-        if (response.ok) {
-          return {
-            success: true,
-            message: 'Appointment update rolled back - previous values restored'
-          };
-        }
+        await offlineDatabaseService.updateAppointment(result.appointmentId, result.previousData);
+        await offlineContextCache.updateCache('default', 'appointments', 'update');
+        return {
+          success: true,
+          message: 'Appointment update rolled back - previous values restored'
+        };
       }
       return {
         success: false,
@@ -810,18 +757,12 @@ class ActionExecutor {
   async rollbackDeleteAppointment(result) {
     try {
       if (result.deletedAppointment) {
-        const response = await fetch(`${BASE_URL}/appointments`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(result.deletedAppointment)
-        });
-        
-        if (response.ok) {
-          return {
-            success: true,
-            message: 'Appointment deletion rolled back - appointment restored'
-          };
-        }
+        await offlineDatabaseService.createAppointment(result.deletedAppointment);
+        await offlineContextCache.updateCache('default', 'appointments', 'create');
+        return {
+          success: true,
+          message: 'Appointment deletion rolled back - appointment restored'
+        };
       }
       return {
         success: false,
@@ -838,16 +779,12 @@ class ActionExecutor {
   async rollbackCreateWeight(result) {
     try {
       if (result.weightId) {
-        const response = await fetch(`${BASE_URL}/weight/${result.weightId}`, {
-          method: 'DELETE'
-        });
-        
-        if (response.ok) {
-          return {
-            success: true,
-            message: 'Weight creation rolled back - weight entry deleted'
-          };
-        }
+        await offlineDatabaseService.deleteWeight(result.weightId);
+        await offlineContextCache.updateCache('default', 'weight', 'delete');
+        return {
+          success: true,
+          message: 'Weight creation rolled back - weight entry deleted'
+        };
       }
       return {
         success: false,
@@ -864,16 +801,12 @@ class ActionExecutor {
   async rollbackCreateMood(result) {
     try {
       if (result.moodId) {
-        const response = await fetch(`${BASE_URL}/mood/${result.moodId}`, {
-          method: 'DELETE'
-        });
-        
-        if (response.ok) {
-          return {
-            success: true,
-            message: 'Mood creation rolled back - mood entry deleted'
-          };
-        }
+        await offlineDatabaseService.deleteMood(result.moodId);
+        await offlineContextCache.updateCache('default', 'mood', 'delete');
+        return {
+          success: true,
+          message: 'Mood creation rolled back - mood entry deleted'
+        };
       }
       return {
         success: false,
@@ -890,16 +823,12 @@ class ActionExecutor {
   async rollbackCreateSleep(result) {
     try {
       if (result.sleepId) {
-        const response = await fetch(`${BASE_URL}/sleep/${result.sleepId}`, {
-          method: 'DELETE'
-        });
-        
-        if (response.ok) {
-          return {
-            success: true,
-            message: 'Sleep creation rolled back - sleep entry deleted'
-          };
-        }
+        await offlineDatabaseService.deleteSleep(result.sleepId);
+        await offlineContextCache.updateCache('default', 'sleep', 'delete');
+        return {
+          success: true,
+          message: 'Sleep creation rolled back - sleep entry deleted'
+        };
       }
       return {
         success: false,
@@ -916,16 +845,12 @@ class ActionExecutor {
   async rollbackCreateSymptom(result) {
     try {
       if (result.symptomId) {
-        const response = await fetch(`${BASE_URL}/symptoms/${result.symptomId}`, {
-          method: 'DELETE'
-        });
-        
-        if (response.ok) {
-          return {
-            success: true,
-            message: 'Symptom creation rolled back - symptom entry deleted'
-          };
-        }
+        await offlineDatabaseService.deleteSymptom(result.symptomId);
+        await offlineContextCache.updateCache('default', 'symptoms', 'delete');
+        return {
+          success: true,
+          message: 'Symptom creation rolled back - symptom entry deleted'
+        };
       }
       return {
         success: false,
@@ -942,16 +867,12 @@ class ActionExecutor {
   async rollbackCreateMedicine(result) {
     try {
       if (result.medicineId) {
-        const response = await fetch(`${BASE_URL}/medicine/${result.medicineId}`, {
-          method: 'DELETE'
-        });
-        
-        if (response.ok) {
-          return {
-            success: true,
-            message: 'Medicine creation rolled back - medicine entry deleted'
-          };
-        }
+        await offlineDatabaseService.deleteMedicine(result.medicineId);
+        await offlineContextCache.updateCache('default', 'medicine', 'delete');
+        return {
+          success: true,
+          message: 'Medicine creation rolled back - medicine entry deleted'
+        };
       }
       return {
         success: false,
@@ -968,16 +889,12 @@ class ActionExecutor {
   async rollbackCreateBloodPressure(result) {
     try {
       if (result.bpId) {
-        const response = await fetch(`${BASE_URL}/blood_pressure/${result.bpId}`, {
-          method: 'DELETE'
-        });
-        
-        if (response.ok) {
-          return {
-            success: true,
-            message: 'Blood pressure creation rolled back - BP entry deleted'
-          };
-        }
+        await offlineDatabaseService.deleteBPLog(result.bpId);
+        await offlineContextCache.updateCache('default', 'blood_pressure', 'delete');
+        return {
+          success: true,
+          message: 'Blood pressure creation rolled back - BP entry deleted'
+        };
       }
       return {
         success: false,

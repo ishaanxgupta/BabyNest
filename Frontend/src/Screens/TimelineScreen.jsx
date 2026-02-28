@@ -19,7 +19,8 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import { Modal } from "react-native-paper";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import Toast from 'react-native-toast-message';
-import { BASE_URL } from '@env';
+import { BASE_URL } from '../config/config';
+import { offlineDatabaseService, offlineContextCache } from '../services/offline';
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -37,9 +38,9 @@ const TimelineScreen = ({ navigation }) => {
   const fetchTasks = async () => {
     try {
       setRefreshing(true);
-      const response = await fetch(`${BASE_URL}/get_tasks`);
-      const data = await response.json();
-      console.log("Raw Data from Backend:", data);
+      await offlineDatabaseService.initialize();
+      const data = await offlineDatabaseService.getTasks();
+      console.log("Raw Data from Database:", data);
 
       // Correctly extract data from the response
       const formattedData = data.map((task) => ({
@@ -98,20 +99,11 @@ const TimelineScreen = ({ navigation }) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     try {
       console.log(taskId);
-      const response = await fetch(`${BASE_URL}/update_task/${taskId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task_status: "completed" }),
-      });
-      const data = await response.json();
-
-      if (response.status === 200) {
-        console.log("Success", "Task marked as done!");
-        const updatedTasks = tasks.map((task) => (task.id === taskId ? { ...task, status: "completed" } : task));
-        setTasks(updatedTasks);
-      } else {
-        console.log("Error", data.error || "Something went wrong!");
-      }
+      await offlineDatabaseService.updateTask(taskId, { task_status: "completed" });
+      await offlineContextCache.updateCache('default', 'tasks', 'update');
+      console.log("Success", "Task marked as done!");
+      const updatedTasks = tasks.map((task) => (task.id === taskId ? { ...task, status: "completed" } : task));
+      setTasks(updatedTasks);
     } catch (error) {
       console.log("Error", error.message);
     }
@@ -121,35 +113,29 @@ const TimelineScreen = ({ navigation }) => {
   const makeappointment = async () => {
     try {
       console.log("New Appointment:", newAppointment);
-      const response = await fetch(`${BASE_URL}/move_to_appointment/${newAppointment.task_id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newAppointment),
+      
+      await offlineDatabaseService.createAppointment({
+        title: newAppointment.title,
+        content: newAppointment.content,
+        appointment_date: newAppointment.appointment_date,
+        appointment_time: newAppointment.appointment_time,
+        appointment_location: newAppointment.appointment_location,
       });
+      
+      await offlineDatabaseService.updateTask(newAppointment.task_id, { isAppointmentMade: 1 });
+      await offlineContextCache.updateCache('default', 'appointments', 'create');
 
-      const data = await response.json();
-      if (response.ok) {
-        setModalVisible(false);
-        console.log("Success", "Appointment created successfully!");
-        setModalVisible(false);
-        setNewAppointment({ title: "", content: "", appointment_date: "", appointment_time: "", appointment_location: "" });
-        fetchTasks();
+      setModalVisible(false);
+      console.log("Success", "Appointment created successfully!");
+      setNewAppointment({ title: "", content: "", appointment_date: "", appointment_time: "", appointment_location: "" });
+      fetchTasks();
 
-        Toast.show({
-          type: "success",
-          text1: "Appointment added successfully!",
-          visibilityTime: 1000,
-          position: "bottom",
-        });
-      } else {
-        Toast.show({
-          type: "error",
-          text1: data.error || "Something went wrong!",
-          visibilityTime: 1000,
-          position: "bottom",
-        });
-        console.log("Error", data.error || "Something went wrong!");
-      }
+      Toast.show({
+        type: "success",
+        text1: "Appointment added successfully!",
+        visibilityTime: 1000,
+        position: "bottom",
+      });
     } catch (error) {
       Toast.show({
         type: "error",

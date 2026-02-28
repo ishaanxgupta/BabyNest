@@ -9,8 +9,9 @@ import {
 } from 'react-native';
 import {TextInput, Button, Card, Dialog, Portal} from 'react-native-paper';
 import Icon from 'react-native-vector-icons/Ionicons';
-import {BASE_URL} from '@env';
+import {BASE_URL} from '../config/config';
 import HeaderWithBack from '../Components/HeaderWithBack';
+import {offlineDatabaseService, offlineContextCache} from '../services/offline';
 
 export default function DischargeScreen() {
   const [week, setWeek] = useState('');
@@ -26,11 +27,8 @@ export default function DischargeScreen() {
 
   const fetchDischargeLogs = async () => {
     try {
-      const res = await fetch(`${BASE_URL}/get_discharge_logs`);
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-      const data = await res.json();
+      await offlineDatabaseService.initialize();
+      const data = await offlineDatabaseService.getDischargeLogs(50);
       setHistory(data);
     } catch (err) {
       console.error('Failed to fetch discharge logs:', err);
@@ -54,15 +52,14 @@ export default function DischargeScreen() {
       return;
     }
     try {
-      const res = await fetch(`${BASE_URL}/set_discharge_log`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({week_number: week, type, color, bleeding, note}),
+      await offlineDatabaseService.logDischarge({
+        week_number: parseInt(week),
+        type: type,
+        color: color,
+        bleeding: bleeding,
+        note: note,
       });
-
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
+      await offlineContextCache.updateCache('default', 'discharge', 'create');
 
       setWeek('');
       setType('');
@@ -87,14 +84,8 @@ export default function DischargeScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const res = await fetch(`${BASE_URL}/discharge_log/${id}`, {
-                method: 'DELETE',
-              });
-
-              if (!res.ok) {
-                throw new Error(`HTTP error! status: ${res.status}`);
-              }
-
+              await offlineDatabaseService.deleteDischargeLog(id);
+              await offlineContextCache.updateCache('default', 'discharge', 'delete');
               fetchDischargeLogs();
             } catch (err) {
               console.error('Failed to delete entry:', err);
@@ -129,21 +120,14 @@ export default function DischargeScreen() {
       return;
     }
     try {
-      const res = await fetch(`${BASE_URL}/discharge_log/${editData.id}`, {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          week_number: editData.week_number,
-          type: editData.type,
-          color: editData.color,
-          bleeding: editData.bleeding,
-          note: editData.note,
-        }),
+      await offlineDatabaseService.updateDischargeLog(editData.id, {
+        week_number: editData.week_number,
+        type: editData.type,
+        color: editData.color,
+        bleeding: editData.bleeding,
+        note: editData.note,
       });
-
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
+      await offlineContextCache.updateCache('default', 'discharge', 'update');
 
       setEditVisible(false);
       setEditData(null);

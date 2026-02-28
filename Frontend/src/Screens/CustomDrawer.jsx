@@ -10,8 +10,9 @@ import {
 } from 'react-native';
 import { DrawerContext } from '../context/DrawerContext';
 import { useNavigation, CommonActions } from '@react-navigation/native';
-import { BASE_URL } from '@env';
+import { BASE_URL } from '../config/config';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { offlineDatabaseService, offlineContextCache } from '../services/offline';
 
 const DRAWER_WIDTH = 260;
 
@@ -86,15 +87,9 @@ export default function CustomDrawer({ children }) {
     if (isAnimatingRef.current) return;
 
     try {
-      const res = await fetch(`${BASE_URL}/delete_profile`, {
-        method: 'DELETE',
-      });
-      const data = await res.json();
-
-      if (data?.error) {
-        Alert.alert('Logout Failed', data.error);
-        return;
-      }
+      await offlineDatabaseService.initialize();
+      await offlineDatabaseService.deleteProfile();
+      await offlineContextCache.invalidateCache('default');
 
       closeDrawer(() => {
         navigation.dispatch(

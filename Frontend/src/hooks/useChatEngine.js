@@ -4,7 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateResponse } from '../model/model';
 import { ragService } from '../services/RAGService';
 import { conversationContext } from '../services/ConversationContext';
-import { BASE_URL } from "@env";
+import { offlineAgentService } from '../services/offline';
+import { DEFAULT_USER_ID, FEATURES } from '../config/config';
 
 export const useChatEngine = (isInitialized, context, refreshContext) => {
   const [conversation, setConversation] = useState([]);
@@ -20,7 +21,6 @@ export const useChatEngine = (isInitialized, context, refreshContext) => {
           const parsedChats = JSON.parse(storedChats);
           if (Array.isArray(parsedChats)) {
             setConversation(parsedChats);
-            // Hydrate context
             parsedChats.forEach(msg => {
               if (msg?.role && msg?.content) {
                 conversationContext.addMessage(msg.role, msg.content);
@@ -35,7 +35,6 @@ export const useChatEngine = (isInitialized, context, refreshContext) => {
     loadChats();
   }, []);
 
-  // Sync to storage
   const saveChats = useCallback(async (newConversation) => {
     try {
       await AsyncStorage.setItem('chat_history', JSON.stringify(newConversation));
@@ -47,7 +46,7 @@ export const useChatEngine = (isInitialized, context, refreshContext) => {
   const generateID = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
   const clearConversation = useCallback(async () => {
-    cancellationRef.current += 1; // Block pending responses
+    cancellationRef.current += 1;
     setConversation([]);
     conversationContext.clearConversationHistory();
     await saveChats([]);
@@ -56,7 +55,6 @@ export const useChatEngine = (isInitialized, context, refreshContext) => {
   const sendMessage = useCallback(async (text, useRAGMode, initializeContext) => {
     if (!text || !text.trim()) return;
 
-    // Ensure context is initialized
     if (!isInitialized) {
       try {
         await initializeContext();
@@ -78,12 +76,9 @@ export const useChatEngine = (isInitialized, context, refreshContext) => {
     };
     const cancellationId = cancellationRef.current;
     
-    // Add message to conversation context immediately
     conversationContext.addMessage('user', text);
     setIsGenerating(true);
 
-    // We use functional update to ensure we always have the latest state, 
-    // even if clearConversation was called just before this.
     setConversation(prev => {
       const newHistory = [...prev, userMessage];
       saveChats(newHistory);
@@ -94,10 +89,7 @@ export const useChatEngine = (isInitialized, context, refreshContext) => {
       let response = null;
       let result = null;
 
-      // Prepare the history for the model. 
-      // Important: We use the most recent history available in this render cycle plus the new message.
       const updatedConversationForModel = [...conversation, userMessage];
-
       conversationContext.setUserContext(context);
 
       if (useRAGMode) {
@@ -134,34 +126,26 @@ export const useChatEngine = (isInitialized, context, refreshContext) => {
           conversationContext.clearPendingFollowUp();
         }
       } else {
-        // Fallback to backend agent
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
-
+        // Use offline agent service instead of backend API
+        if (__DEV__) console.log('🔌 Using offline agent service...');
         try {
-          const agentResponse = await fetch(`${BASE_URL}/agent`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: text, user_id: "default" }),
-            signal: controller.signal
-          });
+          const agentResult = await offlineAgentService.run(text, DEFAULT_USER_ID);
           
-          clearTimeout(timeoutId);
-
-          if (agentResponse.ok) {
-            const agentData = await agentResponse.json();
-            response = agentData.response;
-          } else {
-            throw new Error('Backend agent failed');
+          if (agentResult && typeof agentResult === 'object') {
+            response = agentResult.message;
+            result = agentResult;
+          } else if (typeof agentResult === 'string') {
+            response = agentResult;
+            result = { message: agentResult, intent: 'general', action: null };
           }
-        } catch (backendError) {
-          clearTimeout(timeoutId);
-          console.warn('Backend fallback failed or timed out, using local model:', backendError.message);
+        } catch (agentError) {
+          console.warn('Offline agent failed, using local model:', agentError.message);
           response = await generateResponse(updatedConversationForModel);
+          result = { message: response, intent: 'general_chat', action: null };
         }
       }
 
-      // 🛡️ Cancellation Guard: If the conversation was cleared while thinking, discard the response.
+      // Cancellation Guard
       if (cancellationId !== cancellationRef.current) {
         if (__DEV__) console.log('🚫 AI response blocked: Conversation was cleared.');
         return;
@@ -190,7 +174,7 @@ export const useChatEngine = (isInitialized, context, refreshContext) => {
     } finally {
       setIsGenerating(false);
     }
-  }, [isInitialized, context, saveChats, conversation]); // conversation added as dependency to avoid stale closure
+  }, [isInitialized, context, saveChats, conversation]);
 
   return {
     conversation,

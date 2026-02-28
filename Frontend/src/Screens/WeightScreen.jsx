@@ -8,9 +8,10 @@ import {
   Alert,
 } from 'react-native';
 import {TextInput, Button, Card, Dialog, Portal} from 'react-native-paper';
-import {BASE_URL} from '@env';
+import {BASE_URL} from '../config/config';
 import HeaderWithBack from '../Components/HeaderWithBack';
 import Icon from 'react-native-vector-icons/Ionicons';
+import {offlineDatabaseService, offlineContextCache} from '../services/offline';
 
 export default function WeightScreen() {
   const [week, setWeek] = useState('');
@@ -24,12 +25,9 @@ export default function WeightScreen() {
 
   const fetchWeightHistory = async () => {
     try {
-      const res = await fetch(`${BASE_URL}/weight`);
-      if (!res.ok) {
-        throw new Error('Network response was not ok');
-      }
-      const data = await res.json();
-      setHistory(data.reverse());
+      await offlineDatabaseService.initialize();
+      const data = await offlineDatabaseService.getWeightLogs(50);
+      setHistory(data);
     } catch (err) {
       console.error('Failed to fetch weights:', err);
     }
@@ -70,11 +68,12 @@ export default function WeightScreen() {
     }
 
     try {
-      await fetch(`${BASE_URL}/weight`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({week_number: week, weight, note}),
+      await offlineDatabaseService.logWeight({
+        week_number: parseInt(week),
+        weight: parseFloat(weight),
+        note: note
       });
+      await offlineContextCache.updateCache('default', 'weight', 'create');
       setWeek('');
       setWeight('');
       setNote('');
@@ -96,9 +95,8 @@ export default function WeightScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await fetch(`${BASE_URL}/weight/${id}`, {
-                method: 'DELETE',
-              });
+              await offlineDatabaseService.deleteWeight(id);
+              await offlineContextCache.updateCache('default', 'weight', 'delete');
               fetchWeightHistory();
             } catch (err) {
               console.error('Failed to delete weight:', err);
@@ -117,15 +115,12 @@ export default function WeightScreen() {
 
   const handleUpdate = async () => {
     try {
-      await fetch(`${BASE_URL}/weight/${editData.id}`, {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          week_number: editData.week_number,
-          weight: editData.weight,
-          note: editData.note,
-        }),
+      await offlineDatabaseService.updateWeight(editData.id, {
+        week_number: editData.week_number,
+        weight: editData.weight,
+        note: editData.note,
       });
+      await offlineContextCache.updateCache('default', 'weight', 'update');
       setEditVisible(false);
       setEditData(null);
       fetchWeightHistory();

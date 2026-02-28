@@ -15,7 +15,8 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation } from '@react-navigation/native';
 import HeaderWithBack from '../Components/HeaderWithBack';
-import { BASE_URL } from '@env';
+import { BASE_URL } from '../config/config';
+import { offlineDatabaseService } from '../services/offline';
 
 const ProfileField = ({ label, value }) => (
   <View style={styles.fieldContainer}>
@@ -40,9 +41,9 @@ export default function ProfileScreen() {
 
   const fetchProfileData = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/get_profile`);
-      if (response.ok) {
-        const data = await response.json();
+      await offlineDatabaseService.initialize();
+      const data = await offlineDatabaseService.getProfile();
+      if (data) {
         setProfileData({
           name: data.name || 'Guest',
           due_date: data.due_date || 'Not set',

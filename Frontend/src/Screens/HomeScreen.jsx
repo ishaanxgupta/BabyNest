@@ -12,9 +12,10 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import {BASE_URL} from '@env';
+import {BASE_URL} from '../config/config';
 import {useDrawer} from '../context/DrawerContext';
 import {babySizes} from '../data/babySizes';
+import {offlineDatabaseService} from '../services/offline';
 
 export default function HomeScreen({navigation}) {
   const [dueDate, setDueDate] = useState('');
@@ -32,13 +33,14 @@ export default function HomeScreen({navigation}) {
 
   const fetchData = async () => {
     try {
-      const profileRes = await fetch(`${BASE_URL}/get_profile`);
-      const profileData = await profileRes.json();
-      const fetchedDueDate = profileData?.due_date;
+      await offlineDatabaseService.initialize();
+      
+      const profileData = await offlineDatabaseService.getProfile();
+      const fetchedDueDate = profileData?.dueDate;
 
       if (fetchedDueDate) {
         setDueDate(fetchedDueDate);
-        console.log(' Due Date:', fetchedDueDate); // Debugging line
+        console.log(' Due Date:', fetchedDueDate);
 
         const calculatedWeek = calculateCurrentWeek(fetchedDueDate);
         setCurrentWeek(calculatedWeek);
@@ -46,12 +48,10 @@ export default function HomeScreen({navigation}) {
         scrollToWeek(calculatedWeek);
       }
 
-      const apptRes = await fetch(`${BASE_URL}/get_appointments`);
-      const apptData = await apptRes.json();
+      const apptData = await offlineDatabaseService.getAppointments();
       setAllAppointments(apptData || []);
 
-      const taskRes = await fetch(`${BASE_URL}/get_tasks`);
-      const taskData = await taskRes.json();
+      const taskData = await offlineDatabaseService.getTasks();
       setAllTasks(taskData || []);
     } catch (error) {
       console.error('Error fetching data:', error);

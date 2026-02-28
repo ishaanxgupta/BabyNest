@@ -1,11 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { BASE_URL } from '@env';
+import { offlineAgentService, offlineContextCache, offlineDatabaseService } from '../services/offline';
+import { DEFAULT_USER_ID, FEATURES } from '../config/config';
+import { searchGuidelines, getGuidelinesForWeek } from '../services/offline/GuidelinesData';
 
 /**
  * AgentContext - Manages AI agent context and user data
  * 
- * IMPORTANT: This context no longer automatically fetches data on mount.
- * Context initialization is now lazy and only happens when needed.
+ * FULLY OFFLINE VERSION - No backend API calls
+ * All data is stored locally on the device using SQLite
  * 
  * Usage:
  * 1. Call initializeContext() when user is ready (after login/profile setup)
@@ -30,8 +32,7 @@ export const AgentProvider = ({ children }) => {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  const fetchContext = async (user_id = "default", force = false) => {
-    // Don't fetch if already initialized and not forced
+  const fetchContext = async (user_id = DEFAULT_USER_ID, force = false) => {
     if (isInitialized && !force) {
       return;
     }
@@ -40,79 +41,61 @@ export const AgentProvider = ({ children }) => {
     setError(null);
     
     try {
-      const response = await fetch(`${BASE_URL}/agent/context?user_id=${user_id}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch context: ${response.status}`);
+      await offlineAgentService.initialize();
+      const userContext = await offlineContextCache.getContext(user_id);
+      
+      if (userContext) {
+        setContext(userContext);
+        setLastUpdated(new Date());
+        setIsInitialized(true);
+      } else {
+        setError('Profile not set up. Please complete your profile first.');
+        setIsInitialized(false);
       }
-
-      const data = await response.json();
-      setContext(data);
-      setLastUpdated(new Date());
-      setIsInitialized(true);
     } catch (err) {
       setError(err.message);
-      console.error('Error fetching agent context:', err);
-      // Don't mark as initialized if there was an error
+      console.error('Error fetching offline context:', err);
       setIsInitialized(false);
     } finally {
       setLoading(false);
     }
   };
 
-  const refreshContext = async (user_id = "default") => {
+  const refreshContext = async (user_id = DEFAULT_USER_ID) => {
     try {
-      const response = await fetch(`${BASE_URL}/agent/refresh`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ user_id }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to refresh context: ${response.status}`);
-      }
-
-      // Fetch the updated context with force=true to bypass initialization check
+      await offlineContextCache.invalidateCache(user_id);
       await fetchContext(user_id, true);
     } catch (err) {
-      console.warn('Context refresh failed, falling back to direct fetch:', err.message);
-      // Fallback: just fetch the context directly without refresh
-      try {
-        await fetchContext(user_id, true);
-      } catch (fallbackErr) {
-        setError(fallbackErr.message);
-        console.error('Error refreshing context:', fallbackErr);
-      }
+      console.warn('Context refresh failed:', err.message);
+      setError(err.message);
     }
   };
 
-  const getTaskRecommendations = async (week = null, user_id = "default") => {
+  const getTaskRecommendations = async (week = null, user_id = DEFAULT_USER_ID) => {
     try {
-      let url = `${BASE_URL}/agent/tasks/recommendations?user_id=${user_id}`;
-      if (week) {
-        url += `&week=${week}`;
-      }
+      const userContext = await offlineContextCache.getContext(user_id);
+      const currentWeek = week || userContext?.current_week || 1;
       
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const tasks = await offlineDatabaseService.getTasks(currentWeek);
+      const guidelines = getGuidelinesForWeek(currentWeek, 5);
+      
+      const pendingTasks = tasks.filter(t => t.task_status === 'pending');
+      const highPriorityTasks = pendingTasks.filter(t => t.task_priority === 'high');
 
-      if (!response.ok) {
-        throw new Error(`Failed to get recommendations: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return data;
+      return {
+        recommendations: `Based on your current week (${currentWeek}), here are your recommendations:\n\n` +
+          pendingTasks.slice(0, 3).map(t => `• ${t.title}: ${t.content}`).join('\n') +
+          (guidelines.length > 0 ? `\n\nGuidelines for this week:\n` + 
+            guidelines.slice(0, 2).map(g => `• ${g.title}`).join('\n') : ''),
+        current_week: currentWeek,
+        tasks: pendingTasks,
+        guidelines: guidelines,
+        context_used: {
+          weight: userContext?.tracking_data?.weight || [],
+          symptoms: userContext?.tracking_data?.symptoms || [],
+          medicine: userContext?.tracking_data?.medicine || []
+        }
+      };
     } catch (err) {
       console.error('Error getting task recommendations:', err);
       throw err;
@@ -121,36 +104,45 @@ export const AgentProvider = ({ children }) => {
 
   const getCacheStatus = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/agent/cache/status`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to get cache status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return data;
+      const stats = offlineContextCache.getCacheStats();
+      return {
+        cache_system: 'offline_sqlite',
+        cache_status: 'active',
+        auto_update: true,
+        ...stats,
+        note: 'Running in fully offline mode - all data stored locally'
+      };
     } catch (err) {
       console.error('Error getting cache status:', err);
       throw err;
     }
   };
 
-  // Initialize context when user is ready (e.g., after login/profile setup)
-  const initializeContext = async (user_id = "default") => {
+  const initializeContext = async (user_id = DEFAULT_USER_ID) => {
     await fetchContext(user_id, true);
   };
 
-  // Check if context is ready for use
   const isContextReady = () => {
     return isInitialized && context !== null;
   };
 
-  // Remove automatic fetch on mount - context will be initialized when needed
+  const runAgent = async (query, user_id = DEFAULT_USER_ID) => {
+    try {
+      return await offlineAgentService.run(query, user_id);
+    } catch (err) {
+      console.error('Error running offline agent:', err);
+      throw err;
+    }
+  };
+
+  const updateCacheForDataType = async (dataType, operation = 'update', user_id = DEFAULT_USER_ID) => {
+    try {
+      await offlineContextCache.updateCache(user_id, dataType, operation);
+      await fetchContext(user_id, true);
+    } catch (err) {
+      console.error('Error updating cache:', err);
+    }
+  };
 
   const value = {
     context,
@@ -164,6 +156,9 @@ export const AgentProvider = ({ children }) => {
     isContextReady,
     getTaskRecommendations,
     getCacheStatus,
+    runAgent,
+    updateCacheForDataType,
+    isOfflineMode: true,
   };
 
   return (
