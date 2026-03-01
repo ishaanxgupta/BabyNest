@@ -10,7 +10,7 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 import {TextInput, Button, Card, Portal, Dialog} from 'react-native-paper';
 import HeaderWithBack from '../Components/HeaderWithBack';
-import {BASE_URL} from '@env';
+import {getBloodPressureHistory, addBloodPressure, updateBloodPressure, deleteBloodPressure} from '../services/database';
 
 export default function BloodPressureScreen() {
   const [week, setWeek] = useState('');
@@ -27,9 +27,8 @@ export default function BloodPressureScreen() {
 
   const fetchBPLogs = async () => {
     try {
-      const res = await fetch(`${BASE_URL}/blood_pressure`);
-      const data = await res.json();
-      setHistory(data.reverse());
+      const data = await getBloodPressureHistory();
+      setHistory([...data].reverse());
     } catch (err) {
       console.error('Failed to fetch BP logs:', err);
     }
@@ -52,17 +51,7 @@ export default function BloodPressureScreen() {
     }
 
     try {
-      await fetch(`${BASE_URL}/set_bp_log`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          week_number: week,
-          systolic,
-          diastolic,
-          time,
-          note,
-        }),
-      });
+      await addBloodPressure({week_number: week, systolic, diastolic, time, note});
       setWeek('');
       setSystolic('');
       setDiastolic('');
@@ -71,10 +60,7 @@ export default function BloodPressureScreen() {
       fetchBPLogs();
     } catch (err) {
       console.error('Failed to save BP log:', err);
-      Alert.alert(
-        'Error',
-        'Failed to save blood pressure entry. Please try again.',
-      );
+      Alert.alert('Error', 'Failed to save blood pressure entry. Please try again.');
     }
   };
 
@@ -85,26 +71,19 @@ export default function BloodPressureScreen() {
 
   const handleUpdate = async () => {
     try {
-      await fetch(`${BASE_URL}/blood_pressure/${editData.id}`, {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          week_number: editData.week_number,
-          systolic: editData.systolic,
-          diastolic: editData.diastolic,
-          time: editData.time,
-          note: editData.note,
-        }),
+      await updateBloodPressure(editData.id, {
+        week_number: editData.week_number,
+        systolic: editData.systolic,
+        diastolic: editData.diastolic,
+        time: editData.time,
+        note: editData.note,
       });
       setEditVisible(false);
       setEditData(null);
       fetchBPLogs();
     } catch (err) {
       console.error('Failed to update BP log:', err);
-      Alert.alert(
-        'Error',
-        'Failed to update blood pressure entry. Please try again.',
-      );
+      Alert.alert('Error', 'Failed to update blood pressure entry. Please try again.');
     }
   };
 
@@ -119,16 +98,11 @@ export default function BloodPressureScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await fetch(`${BASE_URL}/blood_pressure/${id}`, {
-                method: 'DELETE',
-              });
+              await deleteBloodPressure(id);
               fetchBPLogs();
             } catch (err) {
               console.error('Failed to delete BP log:', err);
-              Alert.alert(
-                'Error',
-                'Failed to delete blood pressure entry. Please try again.',
-              );
+              Alert.alert('Error', 'Failed to delete blood pressure entry. Please try again.');
             }
           },
         },

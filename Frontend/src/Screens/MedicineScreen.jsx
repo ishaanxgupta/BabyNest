@@ -8,9 +8,9 @@ import {
   Alert,
 } from 'react-native';
 import {TextInput, Button, Card, Portal, Dialog} from 'react-native-paper';
-import {BASE_URL} from '@env';
 import HeaderWithBack from '../Components/HeaderWithBack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import {getMedicineHistory, addMedicine, updateMedicine, deleteMedicine} from '../services/database';
 
 export default function MedicineScreen() {
   const [week, setWeek] = useState('');
@@ -26,9 +26,8 @@ export default function MedicineScreen() {
 
   const fetchMedicineHistory = async () => {
     try {
-      const res = await fetch(`${BASE_URL}/get_medicine`);
-      const data = await res.json();
-      setHistory(data.reverse());
+      const data = await getMedicineHistory();
+      setHistory([...data].reverse());
     } catch (err) {
       console.error('Failed to fetch medicine records:', err);
     }
@@ -51,11 +50,7 @@ export default function MedicineScreen() {
     }
 
     try {
-      await fetch(`${BASE_URL}/set_medicine`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({week_number: week, name, dose, time, note}),
-      });
+      await addMedicine({week_number: week, name, dose, time, note});
       setWeek('');
       setName('');
       setDose('');
@@ -75,26 +70,19 @@ export default function MedicineScreen() {
 
   const handleUpdate = async () => {
     try {
-      await fetch(`${BASE_URL}/medicine/${editData.id}`, {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          week_number: editData.week_number,
-          name: editData.name,
-          dose: editData.dose,
-          time: editData.time,
-          note: editData.note,
-        }),
+      await updateMedicine(editData.id, {
+        week_number: editData.week_number,
+        name: editData.name,
+        dose: editData.dose,
+        time: editData.time,
+        note: editData.note,
       });
       setEditVisible(false);
       setEditData(null);
       fetchMedicineHistory();
     } catch (err) {
       console.error('Failed to update medicine:', err);
-      Alert.alert(
-        'Error',
-        'Failed to update medicine entry. Please try again.',
-      );
+      Alert.alert('Error', 'Failed to update medicine entry. Please try again.');
     }
   };
 
@@ -109,16 +97,11 @@ export default function MedicineScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await fetch(`${BASE_URL}/medicine/${id}`, {
-                method: 'DELETE',
-              });
+              await deleteMedicine(id);
               fetchMedicineHistory();
             } catch (err) {
               console.error('Failed to delete medicine:', err);
-              Alert.alert(
-                'Error',
-                'Failed to delete medicine entry. Please try again.',
-              );
+              Alert.alert('Error', 'Failed to delete medicine entry. Please try again.');
             }
           },
         },

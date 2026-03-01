@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateResponse } from '../model/model';
 import { ragService } from '../services/RAGService';
 import { conversationContext } from '../services/ConversationContext';
-import { BASE_URL } from "@env";
+// No backend imports needed - fully offline
 
 export const useChatEngine = (isInitialized, context, refreshContext) => {
   const [conversation, setConversation] = useState([]);
@@ -134,31 +134,9 @@ export const useChatEngine = (isInitialized, context, refreshContext) => {
           conversationContext.clearPendingFollowUp();
         }
       } else {
-        // Fallback to backend agent
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
-
-        try {
-          const agentResponse = await fetch(`${BASE_URL}/agent`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: text, user_id: "default" }),
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
-
-          if (agentResponse.ok) {
-            const agentData = await agentResponse.json();
-            response = agentData.response;
-          } else {
-            throw new Error('Backend agent failed');
-          }
-        } catch (backendError) {
-          clearTimeout(timeoutId);
-          console.warn('Backend fallback failed or timed out, using local model:', backendError.message);
-          response = await generateResponse(updatedConversationForModel);
-        }
+        // Fully offline — use local model as fallback
+        console.warn('RAG returned non-object result, using local model fallback');
+        response = await generateResponse(updatedConversationForModel);
       }
 
       // 🛡️ Cancellation Guard: If the conversation was cleared while thinking, discard the response.

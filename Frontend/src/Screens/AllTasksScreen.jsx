@@ -10,7 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { BASE_URL } from '@env';
+import {getTasks, seedDefaultTasks} from '../services/database';
 
 export default function AllTasksScreen({ navigation, route }) {
   const [tasks, setTasks] = useState([]);
@@ -24,12 +24,11 @@ export default function AllTasksScreen({ navigation, route }) {
 
   const fetchTasks = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/get_tasks`);
-      const data = await response.json();
+      await seedDefaultTasks();
+      const data = await getTasks();
       setTasks(data || []);
     } catch (error) {
       console.error('Error fetching tasks:', error);
-      Alert.alert('Error', 'Failed to fetch tasks');
     }
   };
 

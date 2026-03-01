@@ -8,9 +8,9 @@ import {
   Alert,
 } from 'react-native';
 import {TextInput, Button, Card, Dialog, Portal} from 'react-native-paper';
-import {BASE_URL} from '@env';
 import HeaderWithBack from '../Components/HeaderWithBack';
 import Icon from 'react-native-vector-icons/Ionicons';
+import {getWeightHistory, addWeight, updateWeight, deleteWeight} from '../services/database';
 
 export default function WeightScreen() {
   const [week, setWeek] = useState('');
@@ -24,12 +24,8 @@ export default function WeightScreen() {
 
   const fetchWeightHistory = async () => {
     try {
-      const res = await fetch(`${BASE_URL}/weight`);
-      if (!res.ok) {
-        throw new Error('Network response was not ok');
-      }
-      const data = await res.json();
-      setHistory(data.reverse());
+      const data = await getWeightHistory();
+      setHistory([...data].reverse());
     } catch (err) {
       console.error('Failed to fetch weights:', err);
     }
@@ -70,11 +66,7 @@ export default function WeightScreen() {
     }
 
     try {
-      await fetch(`${BASE_URL}/weight`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({week_number: week, weight, note}),
-      });
+      await addWeight({week_number: week, weight, note});
       setWeek('');
       setWeight('');
       setNote('');
@@ -96,9 +88,7 @@ export default function WeightScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await fetch(`${BASE_URL}/weight/${id}`, {
-                method: 'DELETE',
-              });
+              await deleteWeight(id);
               fetchWeightHistory();
             } catch (err) {
               console.error('Failed to delete weight:', err);
@@ -117,14 +107,10 @@ export default function WeightScreen() {
 
   const handleUpdate = async () => {
     try {
-      await fetch(`${BASE_URL}/weight/${editData.id}`, {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          week_number: editData.week_number,
-          weight: editData.weight,
-          note: editData.note,
-        }),
+      await updateWeight(editData.id, {
+        week_number: editData.week_number,
+        weight: editData.weight,
+        note: editData.note,
       });
       setEditVisible(false);
       setEditData(null);

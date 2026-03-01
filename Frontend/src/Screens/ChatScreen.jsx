@@ -6,7 +6,7 @@ import {
 import Clipboard from "@react-native-clipboard/clipboard";
 import { useNavigation, CommonActions } from "@react-navigation/native";
 import { downloadModel, generateResponse, unloadModel } from "../model/model";
-import { GGUF_FILE, BASE_URL } from "@env";
+import { GGUF_FILE } from "@env";
 import { useTheme } from '../theme/ThemeContext';
 import { useAgentContext } from '../context/AgentContext';
 import { ragService } from '../services/RAGService';

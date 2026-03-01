@@ -14,7 +14,7 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import Toast from 'react-native-toast-message';
-import {BASE_URL} from '@env';
+import {getAppointments, addAppointment, updateAppointment, deleteAppointment} from '../services/database';
 
 const days = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 const colors = ['#FDE68A', '#BFDBFE', '#FECACA', '#D1FAE5'];
@@ -97,9 +97,7 @@ const ScheduleScreen = () => {
   const fetchAppointments = async () => {
     try {
       setRefreshing(true);
-      const response = await fetch(`${BASE_URL}/get_appointments`);
-      const data = await response.json();
-
+      const data = await getAppointments();
       if (JSON.stringify(data) !== JSON.stringify(appointments)) {
         setAppointments(data);
       }
@@ -146,43 +144,25 @@ const ScheduleScreen = () => {
     setDateSelectorVisible(false);
   };
 
-  const addAppointment = async () => {
+  const addAppointmentHandler = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/add_appointment`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(newAppointment),
+      await addAppointment(newAppointment);
+      closeModals();
+      setAddAppointmentModalVisible(false);
+      setNewAppointment({
+        title: '',
+        content: '',
+        appointment_date: '',
+        appointment_time: '',
+        appointment_location: '',
       });
-
-      const data = await response.json();
-      if (response.ok) {
-        closeModals();
-        console.log('Success', 'Appointment created successfully!');
-        setAddAppointmentModalVisible(false);
-        setNewAppointment({
-          title: '',
-          content: '',
-          appointment_date: '',
-          appointment_time: '',
-          appointment_location: '',
-        });
-        fetchAppointments();
-
-        Toast.show({
-          type: 'success',
-          text1: 'Appointment added successfully!',
-          visibilityTime: 1000,
-          position: 'bottom',
-        });
-      } else {
-        Toast.show({
-          type: 'error',
-          text1: data.error || 'Something went wrong!',
-          visibilityTime: 1000,
-          position: 'bottom',
-        });
-        console.log('Error', data.error || 'Something went wrong!');
-      }
+      fetchAppointments();
+      Toast.show({
+        type: 'success',
+        text1: 'Appointment added successfully!',
+        visibilityTime: 1000,
+        position: 'bottom',
+      });
     } catch (error) {
       Toast.show({
         type: 'error',
@@ -196,27 +176,14 @@ const ScheduleScreen = () => {
 
   const handleDeleteAppointment = async id => {
     try {
-      const response = await fetch(`${BASE_URL}/delete_appointment/${id}`, {
-        method: 'DELETE',
+      await deleteAppointment(id);
+      Toast.show({
+        type: 'success',
+        text1: 'Appointment deleted successfully!',
+        visibilityTime: 1000,
+        position: 'bottom',
       });
-      const data = await response.json();
-      if (response.ok) {
-        Toast.show({
-          type: 'success',
-          text1: 'Appointment deleted successfully!',
-          visibilityTime: 1000,
-          position: 'bottom',
-        });
-        fetchAppointments();
-      } else {
-        Toast.show({
-          type: 'error',
-          text1: data.error || 'Something went wrong!',
-          visibilityTime: 1000,
-          position: 'bottom',
-        });
-        console.log('Error', data.error || 'Something went wrong!');
-      }
+      fetchAppointments();
     } catch (error) {
       Toast.show({
         type: 'error',
@@ -237,32 +204,14 @@ const ScheduleScreen = () => {
 
   const handleSaveEditAppointment = async () => {
     try {
-      const response = await fetch(
-        `${BASE_URL}/update_appointment/${editAppointment.id}`,
-        {
-          method: 'PUT',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify(editAppointment),
-        },
-      );
-      const data = await response.json();
-      if (response.ok) {
-        Toast.show({
-          type: 'success',
-          text1: 'Appointment updated successfully!',
-          visibilityTime: 1000,
-          position: 'bottom',
-        });
-        fetchAppointments();
-      } else {
-        Toast.show({
-          type: 'error',
-          text1: data.error || 'Something went wrong!',
-          visibilityTime: 1000,
-          position: 'bottom',
-        });
-        console.log('Error', data.error || 'Something went wrong!');
-      }
+      await updateAppointment(editAppointment.id, editAppointment);
+      Toast.show({
+        type: 'success',
+        text1: 'Appointment updated successfully!',
+        visibilityTime: 1000,
+        position: 'bottom',
+      });
+      fetchAppointments();
     } catch (error) {
       Toast.show({
         type: 'error',
@@ -529,7 +478,7 @@ const ScheduleScreen = () => {
             <View style={styles.buttonContainer}>
               <TouchableOpacity
                 style={[styles.button, styles.saveButton]}
-                onPress={addAppointment}>
+                onPress={addAppointmentHandler}>
                 <Text style={styles.saveButtonText}>Save Appointment</Text>
               </TouchableOpacity>
               <TouchableOpacity

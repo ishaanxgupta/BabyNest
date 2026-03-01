@@ -3,6 +3,8 @@
  * Manages conversation state and follow-up context for RAG system
  */
 
+import * as db from './database';
+
 class ConversationContext {
   constructor() {
     this.pendingFollowUp = null;
@@ -311,22 +313,11 @@ class ConversationContext {
     const results = [];
     let successCount = 0;
     
-    // Import BASE_URL from environment
-    const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:5000';
-    
     for (const appointment of selectedAppointments) {
       try {
-        const response = await fetch(`${BASE_URL}/delete_appointment/${appointment.id}`, {
-          method: 'DELETE'
-        });
-        
-        if (response.ok) {
-          successCount++;
-          results.push(`✅ "${appointment.title}" deleted successfully`);
-        } else {
-          const errorData = await response.json();
-          results.push(`❌ Failed to delete "${appointment.title}": ${errorData.error || 'Unknown error'}`);
-        }
+        await db.deleteAppointment(appointment.id);
+        successCount++;
+        results.push(`✅ "${appointment.title}" deleted successfully`);
       } catch (error) {
         results.push(`❌ Error deleting "${appointment.title}": ${error.message}`);
       }
@@ -353,24 +344,11 @@ class ConversationContext {
         content: updateData.note || selectedAppointment.content
       };
       
-      // Import BASE_URL from environment
-      const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:5000';
-      
-      const response = await fetch(`${BASE_URL}/update_appointment/${selectedAppointment.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatePayload)
-      });
-      
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ Appointment "${updatePayload.title}" updated successfully!\n\n📅 Date: ${updatePayload.appointment_date}\n⏰ Time: ${updatePayload.appointment_time}\n📍 Location: ${updatePayload.appointment_location}`
-        };
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update appointment');
-      }
+      await db.updateAppointment(selectedAppointment.id, updatePayload);
+      return {
+        success: true,
+        message: `✅ Appointment "${updatePayload.title}" updated successfully!\n\n📅 Date: ${updatePayload.appointment_date}\n⏰ Time: ${updatePayload.appointment_time}\n📍 Location: ${updatePayload.appointment_location}`
+      };
     } catch (error) {
       return {
         success: false,

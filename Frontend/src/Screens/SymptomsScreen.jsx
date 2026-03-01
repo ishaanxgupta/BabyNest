@@ -8,9 +8,9 @@ import {
   Alert,
 } from 'react-native';
 import {TextInput, Button, Card, Portal, Dialog} from 'react-native-paper';
-import {BASE_URL} from '@env';
 import HeaderWithBack from '../Components/HeaderWithBack';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import {getSymptomsHistory, addSymptom, updateSymptom, deleteSymptom} from '../services/database';
 
 export default function SymptomsScreen() {
   const [week, setWeek] = useState('');
@@ -24,15 +24,10 @@ export default function SymptomsScreen() {
 
   const fetchSymptomsHistory = async () => {
     try {
-      const res = await fetch(`${BASE_URL}/symptoms`);
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-      const data = await res.json();
+      const data = await getSymptomsHistory();
       setHistory([...data].reverse());
     } catch (err) {
       console.error('Failed to fetch symptoms:', err);
-      Alert.alert('Error', 'Failed to load symptoms. Please try again.');
     }
   };
 
@@ -56,16 +51,7 @@ export default function SymptomsScreen() {
     }
 
     try {
-      const res = await fetch(`${BASE_URL}/symptoms`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({week_number: week, symptom, note}),
-      });
-
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-
+      await addSymptom({week_number: week, symptom, note});
       setWeek('');
       setSymptom('');
       setNote('');
@@ -91,20 +77,11 @@ export default function SymptomsScreen() {
     }
 
     try {
-      const res = await fetch(`${BASE_URL}/symptoms/${editData.id}`, {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          week_number: editData.week_number,
-          symptom: editData.symptom,
-          note: editData.note,
-        }),
+      await updateSymptom(editData.id, {
+        week_number: editData.week_number,
+        symptom: editData.symptom,
+        note: editData.note,
       });
-
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-
       setEditVisible(false);
       setEditData(null);
       fetchSymptomsHistory();
@@ -125,21 +102,11 @@ export default function SymptomsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const res = await fetch(`${BASE_URL}/symptoms/${id}`, {
-                method: 'DELETE',
-              });
-
-              if (!res.ok) {
-                throw new Error(`HTTP error! status: ${res.status}`);
-              }
-
+              await deleteSymptom(id);
               fetchSymptomsHistory();
             } catch (err) {
               console.error('Failed to delete symptom:', err);
-              Alert.alert(
-                'Error',
-                'Failed to delete symptom. Please try again.',
-              );
+              Alert.alert('Error', 'Failed to delete symptom. Please try again.');
             }
           },
         },

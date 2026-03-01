@@ -12,9 +12,9 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import {BASE_URL} from '@env';
 import {useDrawer} from '../context/DrawerContext';
 import {babySizes} from '../data/babySizes';
+import {getLocalProfile, getAppointments, getTasks, seedDefaultTasks} from '../services/database';
 
 export default function HomeScreen({navigation}) {
   const [dueDate, setDueDate] = useState('');
@@ -32,26 +32,25 @@ export default function HomeScreen({navigation}) {
 
   const fetchData = async () => {
     try {
-      const profileRes = await fetch(`${BASE_URL}/get_profile`);
-      const profileData = await profileRes.json();
-      const fetchedDueDate = profileData?.due_date;
+      // Load profile from local storage (offline-first)
+      const localProfile = await getLocalProfile();
+      const fetchedDueDate = localProfile?.dueDate || null;
 
       if (fetchedDueDate) {
         setDueDate(fetchedDueDate);
-        console.log(' Due Date:', fetchedDueDate); // Debugging line
-
         const calculatedWeek = calculateCurrentWeek(fetchedDueDate);
         setCurrentWeek(calculatedWeek);
         setCurrentBabySize(babySizes[calculatedWeek - 1]);
         scrollToWeek(calculatedWeek);
       }
 
-      const apptRes = await fetch(`${BASE_URL}/get_appointments`);
-      const apptData = await apptRes.json();
+      // Load appointments from local storage
+      const apptData = await getAppointments();
       setAllAppointments(apptData || []);
 
-      const taskRes = await fetch(`${BASE_URL}/get_tasks`);
-      const taskData = await taskRes.json();
+      // Load tasks from local storage (seed defaults on first use)
+      await seedDefaultTasks();
+      const taskData = await getTasks();
       setAllTasks(taskData || []);
     } catch (error) {
       console.error('Error fetching data:', error);

@@ -12,7 +12,7 @@ import {
   SafeAreaView,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import {BASE_URL} from "@env";
+import * as db from '../services/database';
 
 const { width:initialWidth, height: initialHeight } = Dimensions.get("window");
 const scale = size =>(initialWidth / 375) * size;
@@ -56,9 +56,8 @@ export default function OnBoardingScreen() {
 
   const check = async () =>{
     try{
-      const res = await fetch(`${BASE_URL}/get_profile`);
-      const data = await res.json();
-      return !data.error
+      const data = await db.getLocalProfile();
+      return data !== null;
     }
     catch(err){
       console.error("Error fetching profile data:", err);

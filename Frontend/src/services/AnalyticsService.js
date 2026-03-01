@@ -3,7 +3,7 @@
  * Provides comprehensive health analytics and visualization data
  */
 
-import { BASE_URL } from '@env';
+import * as db from './database';
 
 class AnalyticsService {
   constructor() {
@@ -99,16 +99,17 @@ class AnalyticsService {
    * Fetch raw data for a specific metric
    */
   async fetchMetricData(metric, timeframe, options) {
-    const endpoint = this.getEndpointForMetric(metric);
-    const params = this.buildQueryParams(timeframe, options);
-    
-    const response = await fetch(`${BASE_URL}${endpoint}?${params}`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch ${metric} data: ${response.statusText}`);
+    switch (metric) {
+      case 'weight': return await db.getWeightHistory();
+      case 'mood': return await db.getMoodHistory();
+      case 'sleep': return await db.getSleepHistory();
+      case 'symptoms': return await db.getSymptomsHistory();
+      case 'blood_pressure': return await db.getBloodPressureHistory();
+      case 'medicine': return await db.getMedicineHistory();
+      case 'appointments': return await db.getAppointments();
+      case 'tasks': return await db.getTasks();
+      default: return [];
     }
-    
-    return await response.json();
   }
 
   /**

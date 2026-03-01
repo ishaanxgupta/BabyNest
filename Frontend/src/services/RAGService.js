@@ -1,10 +1,10 @@
-/**
+﻿/**
  * RAG (Retrieval-Augmented Generation) Service
  * Intelligent query processing system for BabyNest app
  * Handles all user queries with semantic understanding
  */
 
-import { BASE_URL } from '@env';
+import * as db from './database';
 
 class RAGService {
   constructor() {
@@ -1680,41 +1680,23 @@ class RAGService {
    */
   async createAppointment(data, userContext) {
     try {
-      // Convert natural language dates and times to proper formats
       const properDate = this.convertToDate(data.date);
       const properTime = this.convertToTime(data.time);
-
-      console.log('📅 Converting appointment data:');
-      console.log('Original date:', data.date, '→ Proper date:', properDate);
-      console.log('Original time:', data.time, '→ Proper time:', properTime);
-
-      const response = await fetch(`${BASE_URL}/add_appointment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: data.title || 'Appointment',
-          content: `Appointment scheduled via chat`,
-          appointment_date: properDate,
-          appointment_time: properTime,
-          appointment_location: data.location || 'TBD',
-        })
+      await db.addAppointment({
+        title: data.title || 'Appointment',
+        content: 'Appointment scheduled via chat',
+        appointment_date: properDate,
+        appointment_time: properTime,
+        appointment_location: data.location || 'TBD',
       });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `📅 Appointment "${data.title || 'Appointment'}" scheduled for ${data.date || 'TBD'} at ${data.time || 'TBD'}${data.location ? ` at ${data.location}` : ''}`,
-          action: 'navigate',
-          screen: 'appointments'
-        };
-      } else {
-        throw new Error('Failed to create appointment');
-      }
-    } catch (error) {
       return {
-        success: false,
-        message: `❌ Failed to create appointment: ${error.message}`
+        success: true,
+        message: `📅 Appointment "${data.title || 'Appointment'}" scheduled for ${data.date || 'TBD'} at ${data.time || 'TBD'}${data.location ? ` at ${data.location}` : ''}`,
+        action: 'navigate',
+        screen: 'appointments'
       };
+    } catch (error) {
+      return { success: false, message: `❌ Failed to create appointment: ${error.message}` };
     }
   }
 
@@ -1723,31 +1705,15 @@ class RAGService {
    */
   async logWeight(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/weight`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          weight: data.weight,
-          week_number: data.week_number || userContext.current_week || 12,
-          note: data.note || ''
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `⚖️ Weight ${data.weight}kg logged for week ${data.week_number || userContext.current_week || 12}${data.note ? ` (Note: ${data.note})` : ''}`,
-          action: 'navigate',
-          screen: 'weight'
-        };
-      } else {
-        throw new Error('Failed to log weight');
-      }
-    } catch (error) {
+      const wk = data.week_number || userContext.current_week || 12;
+      await db.addWeight({ weight: data.weight, week_number: wk, note: data.note || '' });
       return {
-        success: false,
-        message: `❌ Failed to log weight: ${error.message}`
+        success: true,
+        message: `⚖️ Weight ${data.weight}kg logged for week ${wk}${data.note ? ` (Note: ${data.note})` : ''}`,
+        action: 'navigate', screen: 'weight'
       };
+    } catch (error) {
+      return { success: false, message: `❌ Failed to log weight: ${error.message}` };
     }
   }
 
@@ -1756,31 +1722,15 @@ class RAGService {
    */
   async logSymptoms(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/symptoms`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          symptom: data.symptom,
-          week_number: data.week_number || userContext.current_week || 12,
-          note: data.note || ''
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `🩺 Symptom "${data.symptom}" logged for week ${data.week_number || userContext.current_week || 12}${data.note ? ` (Note: ${data.note})` : ''}`,
-          action: 'navigate',
-          screen: 'symptoms'
-        };
-      } else {
-        throw new Error('Failed to log symptoms');
-      }
-    } catch (error) {
+      const wk = data.week_number || userContext.current_week || 12;
+      await db.addSymptom({ symptom: data.symptom, week_number: wk, note: data.note || '' });
       return {
-        success: false,
-        message: `❌ Failed to log symptoms: ${error.message}`
+        success: true,
+        message: `🩺 Symptom "${data.symptom}" logged for week ${wk}${data.note ? ` (Note: ${data.note})` : ''}`,
+        action: 'navigate', screen: 'symptoms'
       };
+    } catch (error) {
+      return { success: false, message: `❌ Failed to log symptoms: ${error.message}` };
     }
   }
 
@@ -1789,33 +1739,15 @@ class RAGService {
    */
   async logBloodPressure(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/blood_pressure`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systolic: data.systolic,
-          diastolic: data.diastolic,
-          week_number: data.week_number || userContext.current_week || 12,
-          time: data.time || new Date().toLocaleTimeString(),
-          note: data.note || ''
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `🩸 Blood pressure ${data.systolic}/${data.diastolic} logged for week ${data.week_number || userContext.current_week || 12}${data.note ? ` (Note: ${data.note})` : ''}`,
-          action: 'navigate',
-          screen: 'bloodpressure'
-        };
-      } else {
-        throw new Error('Failed to log blood pressure');
-      }
-    } catch (error) {
+      const wk = data.week_number || userContext.current_week || 12;
+      await db.addBloodPressure({ systolic: data.systolic, diastolic: data.diastolic, week_number: wk, time: data.time || new Date().toLocaleTimeString(), note: data.note || '' });
       return {
-        success: false,
-        message: `❌ Failed to log blood pressure: ${error.message}`
+        success: true,
+        message: `🩸 Blood pressure ${data.systolic}/${data.diastolic} logged for week ${wk}${data.note ? ` (Note: ${data.note})` : ''}`,
+        action: 'navigate', screen: 'bloodpressure'
       };
+    } catch (error) {
+      return { success: false, message: `❌ Failed to log blood pressure: ${error.message}` };
     }
   }
 
@@ -1824,33 +1756,15 @@ class RAGService {
    */
   async logMedicine(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/set_medicine`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: data.name,
-          dose: data.dose || '',
-          time: data.time || '',
-          week_number: data.week_number || userContext.current_week || 12,
-          note: data.note || ''
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `💊 Medicine "${data.name}"${data.dose ? ` (${data.dose})` : ''} logged for week ${data.week_number || userContext.current_week || 12}${data.time ? ` at ${data.time}` : ''}${data.note ? ` (Note: ${data.note})` : ''}`,
-          action: 'navigate',
-          screen: 'medicine'
-        };
-      } else {
-        throw new Error('Failed to log medicine');
-      }
-    } catch (error) {
+      const wk = data.week_number || userContext.current_week || 12;
+      await db.addMedicine({ name: data.name, dose: data.dose || '', time: data.time || '', week_number: wk, note: data.note || '' });
       return {
-        success: false,
-        message: `❌ Failed to log medicine: ${error.message}`
+        success: true,
+        message: `💊 Medicine "${data.name}"${data.dose ? ` (${data.dose})` : ''} logged for week ${wk}${data.time ? ` at ${data.time}` : ''}${data.note ? ` (Note: ${data.note})` : ''}`,
+        action: 'navigate', screen: 'medicine'
       };
+    } catch (error) {
+      return { success: false, message: `❌ Failed to log medicine: ${error.message}` };
     }
   }
 
@@ -1859,33 +1773,15 @@ class RAGService {
    */
   async logDischarge(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/set_discharge_log`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: data.type,
-          color: data.color,
-          bleeding: data.bleeding || 'no',
-          week_number: data.week_number || userContext.current_week || 12,
-          note: data.note || ''
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `🩸 Discharge log recorded for week ${data.week_number || userContext.current_week || 12}: ${data.type}, ${data.color}${data.note ? ` (Note: ${data.note})` : ''}`,
-          action: 'navigate',
-          screen: 'discharge'
-        };
-      } else {
-        throw new Error('Failed to log discharge');
-      }
-    } catch (error) {
+      const wk = data.week_number || userContext.current_week || 12;
+      await db.addDischarge({ type: data.type, color: data.color, bleeding: data.bleeding || 'no', week_number: wk, note: data.note || '' });
       return {
-        success: false,
-        message: `❌ Failed to log discharge: ${error.message}`
+        success: true,
+        message: `🩸 Discharge log recorded for week ${wk}: ${data.type}, ${data.color}${data.note ? ` (Note: ${data.note})` : ''}`,
+        action: 'navigate', screen: 'discharge'
       };
+    } catch (error) {
+      return { success: false, message: `❌ Failed to log discharge: ${error.message}` };
     }
   }
 
@@ -1894,35 +1790,15 @@ class RAGService {
    */
   async createTask(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/add_task`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: data.title,
-          starting_week: data.week || userContext.current_week || 12,
-          ending_week: data.week || userContext.current_week || 12,
-          task_priority: data.priority || 'medium',
-          task_status: 'pending',
-          is_optional: false,
-          content: data.note || ''
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ Task "${data.title}" created for week ${data.week || userContext.current_week || 12} with ${data.priority || 'medium'} priority`,
-          action: 'navigate',
-          screen: 'tasks'
-        };
-      } else {
-        throw new Error('Failed to create task');
-      }
-    } catch (error) {
+      const wk = data.week || userContext.current_week || 12;
+      await db.addTask({ title: data.title, content: data.note || '', starting_week: wk, ending_week: wk, task_priority: data.priority || 'medium', task_status: 'pending' });
       return {
-        success: false,
-        message: `❌ Failed to create task: ${error.message}`
+        success: true,
+        message: `✅ Task "${data.title}" created for week ${wk} with ${data.priority || 'medium'} priority`,
+        action: 'navigate', screen: 'tasks'
       };
+    } catch (error) {
+      return { success: false, message: `❌ Failed to create task: ${error.message}` };
     }
   }
 
@@ -1960,29 +1836,16 @@ class RAGService {
    */
   async updateProfile(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/update_profile`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          [data.field]: data.value
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `👤 Profile updated successfully! ${data.field} set to ${data.value}`,
-          action: 'navigate',
-          screen: 'settings'
-        };
-      } else {
-        throw new Error('Failed to update profile');
-      }
-    } catch (error) {
+      const profile = await db.getLocalProfile() || {};
+      profile[data.field] = data.value;
+      await db.saveProfileLocally(profile);
       return {
-        success: false,
-        message: `❌ Failed to update profile: ${error.message}`
+        success: true,
+        message: `👤 Profile updated successfully! ${data.field} set to ${data.value}`,
+        action: 'navigate', screen: 'settings'
       };
+    } catch (error) {
+      return { success: false, message: `❌ Failed to update profile: ${error.message}` };
     }
   }
 
@@ -1991,89 +1854,45 @@ class RAGService {
    */
   async getData(data, userContext) {
     try {
-      let endpoint = '';
+      let result = [];
       switch (data.type) {
-        case 'appointments':
-          endpoint = '/get_appointments';
-          break;
-        case 'weight':
-          endpoint = '/get_weight';
-          break;
-        case 'symptoms':
-          endpoint = '/get_symptoms';
-          break;
-        case 'medicine':
-          endpoint = '/get_all_medicine';
-          break;
-        case 'blood_pressure':
-          endpoint = '/get_blood_pressure';
-          break;
-        case 'discharge':
-          endpoint = '/get_discharge_logs';
-          break;
-        case 'tasks':
-          endpoint = '/get_tasks';
-          break;
-        default:
-          throw new Error('Unknown data type');
+        case 'appointments': result = await db.getAppointments(); break;
+        case 'weight': result = await db.getWeightHistory(); break;
+        case 'symptoms': result = await db.getSymptomsHistory(); break;
+        case 'medicine': result = await db.getMedicineHistory(); break;
+        case 'blood_pressure': result = await db.getBloodPressureHistory(); break;
+        case 'discharge': result = await db.getDischargeHistory(); break;
+        case 'tasks': result = await db.getTasks(); break;
+        default: throw new Error('Unknown data type');
       }
 
-      const response = await fetch(`${BASE_URL}${endpoint}`);
-      if (response.ok) {
-        const result = await response.json();
-        
-        // Format the data for display
-        let formattedMessage = '';
-        switch (data.type) {
-          case 'appointments':
-            if (result.length === 0) {
-              formattedMessage = '📅 You have no upcoming appointments scheduled.';
-            } else {
-              formattedMessage = '📅 **Your Upcoming Appointments:**\n\n';
-              result.forEach((apt, index) => {
-                formattedMessage += `${index + 1}. **${apt.title}** (ID: ${apt.id})\n`;
-                formattedMessage += `   📅 Date: ${apt.appointment_date}\n`;
-                formattedMessage += `   ⏰ Time: ${apt.appointment_time}\n`;
-                formattedMessage += `   📍 Location: ${apt.appointment_location}\n`;
-                formattedMessage += `   📝 Status: ${apt.appointment_status}\n\n`;
-              });
-            }
-            break;
-          case 'weight':
-            formattedMessage = `⚖️ **Weight History:**\n\n${JSON.stringify(result, null, 2)}`;
-            break;
-          case 'symptoms':
-            formattedMessage = `🤒 **Symptom Log:**\n\n${JSON.stringify(result, null, 2)}`;
-            break;
-          case 'medicine':
-            formattedMessage = `💊 **Medicine Log:**\n\n${JSON.stringify(result, null, 2)}`;
-            break;
-          case 'blood_pressure':
-            formattedMessage = `🩺 **Blood Pressure Log:**\n\n${JSON.stringify(result, null, 2)}`;
-            break;
-          case 'discharge':
-            formattedMessage = `🩸 **Discharge Log:**\n\n${JSON.stringify(result, null, 2)}`;
-            break;
-          case 'tasks':
-            formattedMessage = `✅ **Tasks:**\n\n${JSON.stringify(result, null, 2)}`;
-            break;
-          default:
-            formattedMessage = `📊 **${data.type} Data:**\n\n${JSON.stringify(result, null, 2)}`;
-        }
-        
-        return {
-          success: true,
-          message: formattedMessage,
-          data: result
-        };
-      } else {
-        throw new Error('Failed to fetch data');
+      let formattedMessage = '';
+      switch (data.type) {
+        case 'appointments':
+          if (result.length === 0) {
+            formattedMessage = '📅 You have no upcoming appointments scheduled.';
+          } else {
+            formattedMessage = '📅 **Your Upcoming Appointments:**\n\n';
+            result.forEach((apt, index) => {
+              formattedMessage += `${index + 1}. **${apt.title}** (ID: ${apt.id})\n`;
+              formattedMessage += `   📅 Date: ${apt.appointment_date}\n`;
+              formattedMessage += `   ⏰ Time: ${apt.appointment_time}\n`;
+              formattedMessage += `   📍 Location: ${apt.appointment_location}\n`;
+              formattedMessage += `   📝 Status: ${apt.appointment_status}\n\n`;
+            });
+          }
+          break;
+        case 'weight': formattedMessage = `⚖️ **Weight History:**\n\n${JSON.stringify(result, null, 2)}`; break;
+        case 'symptoms': formattedMessage = `🤒 **Symptom Log:**\n\n${JSON.stringify(result, null, 2)}`; break;
+        case 'medicine': formattedMessage = `💊 **Medicine Log:**\n\n${JSON.stringify(result, null, 2)}`; break;
+        case 'blood_pressure': formattedMessage = `🩺 **Blood Pressure Log:**\n\n${JSON.stringify(result, null, 2)}`; break;
+        case 'discharge': formattedMessage = `🩸 **Discharge Log:**\n\n${JSON.stringify(result, null, 2)}`; break;
+        case 'tasks': formattedMessage = `✅ **Tasks:**\n\n${JSON.stringify(result, null, 2)}`; break;
+        default: formattedMessage = `📊 **${data.type} Data:**\n\n${JSON.stringify(result, null, 2)}`;
       }
+      return { success: true, message: formattedMessage, data: result };
     } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to fetch ${data.type} data: ${error.message}`
-      };
+      return { success: false, message: `❌ Failed to fetch ${data.type} data: ${error.message}` };
     }
   }
 
@@ -2082,13 +1901,7 @@ class RAGService {
    */
   async updateAppointment(data, userContext) {
     try {
-      // First, get all appointments to find the one to update
-      const appointmentsResponse = await fetch(`${BASE_URL}/get_appointments`);
-      if (!appointmentsResponse.ok) {
-        throw new Error('Failed to fetch appointments');
-      }
-      
-      const appointments = await appointmentsResponse.json();
+      const appointments = await db.getAppointments();
       const matchingAppointments = this.findMatchingAppointments(appointments, data.appointment_identifier);
       
       if (matchingAppointments.length === 0) {
@@ -2129,20 +1942,11 @@ class RAGService {
         content: data.note || appointmentToUpdate.content
       };
       
-      const response = await fetch(`${BASE_URL}/update_appointment/${appointmentToUpdate.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData)
-      });
-      
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ Appointment "${updateData.title}" updated successfully!\n\n📅 Date: ${updateData.appointment_date}\n⏰ Time: ${updateData.appointment_time}\n📍 Location: ${updateData.appointment_location}`
-        };
-      } else {
-        throw new Error('Failed to update appointment');
-      }
+      await db.updateAppointment(appointmentToUpdate.id, updateData);
+      return {
+        success: true,
+        message: `✅ Appointment "${updateData.title}" updated successfully!\n\n📅 Date: ${updateData.appointment_date}\n⏰ Time: ${updateData.appointment_time}\n📍 Location: ${updateData.appointment_location}`
+      };
     } catch (error) {
       return {
         success: false,
@@ -2156,13 +1960,7 @@ class RAGService {
    */
   async deleteAppointment(data, userContext) {
     try {
-      // First, get all appointments to find the one to delete
-      const appointmentsResponse = await fetch(`${BASE_URL}/get_appointments`);
-      if (!appointmentsResponse.ok) {
-        throw new Error('Failed to fetch appointments');
-      }
-      
-      const appointments = await appointmentsResponse.json();
+      const appointments = await db.getAppointments();
       const matchingAppointments = this.findMatchingAppointments(appointments, data.appointment_identifier);
       
       if (matchingAppointments.length === 0) {
@@ -2204,19 +2002,11 @@ class RAGService {
       // Single match - proceed with deletion
       const appointmentToDelete = matchingAppointments[0];
       
-      const response = await fetch(`${BASE_URL}/delete_appointment/${appointmentToDelete.id}`, {
-        method: 'DELETE'
-      });
-      
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ Appointment "${appointmentToDelete.title}" deleted successfully!`
-        };
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete appointment');
-      }
+      await db.deleteAppointment(appointmentToDelete.id);
+      return {
+        success: true,
+        message: `✅ Appointment "${appointmentToDelete.title}" deleted successfully!`
+      };
     } catch (error) {
       console.error('Delete appointment error:', error);
       return {
@@ -2334,21 +2124,10 @@ class RAGService {
    */
   async logout(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/delete_profile`, {
-        method: 'DELETE'
-      });
-
-      return {
-        success: true,
-        message: `👋 Logging out... Goodbye!`,
-        action: 'logout'
-      };
+      await db.deleteLocalProfile();
+      return { success: true, message: '👋 Logging out... Goodbye!', action: 'logout' };
     } catch (error) {
-      return {
-        success: true,
-        message: `👋 Logging out... Goodbye!`,
-        action: 'logout'
-      };
+      return { success: true, message: '👋 Logging out... Goodbye!', action: 'logout' };
     }
   }
 
@@ -2356,33 +2135,11 @@ class RAGService {
    * Handle general chat
    */
   async handleGeneralChat(data, userContext) {
-    try {
-      const response = await fetch(`${BASE_URL}/agent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: data.query || '',
-          user_id: "default"
-        })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        return {
-          success: true,
-          message: result.response || 'I\'m here to help with your pregnancy journey!',
-          action: 'generalChat'
-        };
-      } else {
-        throw new Error('Backend agent request failed');
-      }
-    } catch (error) {
-      return {
-        success: true,
-        message: 'I\'m here to help with your pregnancy journey! How can I assist you today?',
-        action: 'generalChat'
-      };
-    }
+    return {
+      success: true,
+      message: 'I\'m here to help with your pregnancy journey! How can I assist you today?',
+      action: 'generalChat'
+    };
   }
 
   /**
@@ -2606,30 +2363,14 @@ class RAGService {
    */
   async logMood(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/log_mood`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mood: data.mood,
-          intensity: data.intensity || 'medium',
-          note: data.note || '',
-          week_number: userContext.current_week || 12
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `😊 Mood logged successfully!\n\n**Mood:** ${data.mood}\n**Intensity:** ${data.intensity || 'medium'}\n**Week:** ${userContext.current_week || 12}`
-        };
-      } else {
-        throw new Error('Failed to log mood');
-      }
-    } catch (error) {
+      const wk = userContext.current_week || 12;
+      await db.addMood({ mood: data.mood, intensity: data.intensity || 'medium', week_number: wk, note: data.note || '' });
       return {
-        success: false,
-        message: `❌ Failed to log mood: ${error.message}`
+        success: true,
+        message: `😊 Mood logged successfully!\n\n**Mood:** ${data.mood}\n**Intensity:** ${data.intensity || 'medium'}\n**Week:** ${wk}`
       };
+    } catch (error) {
+      return { success: false, message: `❌ Failed to log mood: ${error.message}` };
     }
   }
 
@@ -2638,1026 +2379,152 @@ class RAGService {
    */
   async logSleep(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/log_sleep`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          duration: data.duration,
-          bedtime: data.bedtime || null,
-          wake_time: data.wake_time || null,
-          quality: data.quality || 'good',
-          note: data.note || '',
-          week_number: userContext.current_week || 12
-        })
-      });
-
-      if (response.ok) {
-        let message = `😴 Sleep logged successfully!\n\n**Duration:** ${data.duration} hours`;
-        if (data.bedtime) message += `\n**Bedtime:** ${data.bedtime}`;
-        if (data.wake_time) message += `\n**Wake time:** ${data.wake_time}`;
-        message += `\n**Quality:** ${data.quality || 'good'}\n**Week:** ${userContext.current_week || 12}`;
-
-        return {
-          success: true,
-          message: message
-        };
-      } else {
-        throw new Error('Failed to log sleep');
-      }
+      const wk = userContext.current_week || 12;
+      await db.addSleep({ duration: data.duration, bedtime: data.bedtime || null, wake_time: data.wake_time || null, quality: data.quality || 'good', week_number: wk, note: data.note || '' });
+      let message = `😴 Sleep logged successfully!\n\n**Duration:** ${data.duration} hours`;
+      if (data.bedtime) message += `\n**Bedtime:** ${data.bedtime}`;
+      if (data.wake_time) message += `\n**Wake time:** ${data.wake_time}`;
+      message += `\n**Quality:** ${data.quality || 'good'}\n**Week:** ${wk}`;
+      return { success: true, message };
     } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to log sleep: ${error.message}`
-      };
+      return { success: false, message: `❌ Failed to log sleep: ${error.message}` };
     }
   }
 
   /**
-   * Query analytics and generate reports
+   * Query analytics (offline - computed from local data)
    */
   async queryAnalytics(data, userContext) {
     try {
-      const response = await fetch(`${BASE_URL}/get_analytics`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          metric: data.metric,
-          timeframe: data.timeframe || 'week',
-          chart_type: data.chart_type || 'summary'
-        })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        
-        let message = `📊 **${data.metric.charAt(0).toUpperCase() + data.metric.slice(1)} Analytics**\n\n`;
-        
-        // Use the insights from the backend response
-        if (result.insights) {
-          for (const [key, value] of Object.entries(result.insights)) {
-            if (key === 'trend') {
-              message += `**Trend:** ${value}\n`;
-            } else if (key === 'average') {
-              if (data.metric === 'weight') {
-                message += `**Average:** ${value} kg\n`;
-              } else if (data.metric === 'sleep') {
-                message += `**Average:** ${value} hours\n`;
-              } else {
-                message += `**Average:** ${value}\n`;
-              }
-            } else if (key === 'change') {
-              message += `**Change:** ${value}\n`;
-            } else if (key === 'dominant') {
-              message += `**Dominant:** ${value}\n`;
-            } else if (key === 'recommendation') {
-              message += `**Recommendation:** ${value}\n`;
-            } else if (key === 'message') {
-              message += `**Summary:** ${value}\n`;
-            } else if (key === 'min_weight') {
-              message += `**Min Weight:** ${value}kg\n`;
-            } else if (key === 'max_weight') {
-              message += `**Max Weight:** ${value}kg\n`;
-            } else if (key === 'min_sleep') {
-              message += `**Min Sleep:** ${value} hours\n`;
-            } else if (key === 'max_sleep') {
-              message += `**Max Sleep:** ${value} hours\n`;
-            } else if (key === 'total_entries') {
-              message += `**Total Entries:** ${value}\n`;
-            } else if (key === 'happy_percentage') {
-              message += `**Happiness:** ${value}%\n`;
-            } else if (key === 'calm_percentage') {
-              message += `**Calmness:** ${value}%\n`;
-            } else if (key === 'unique_weeks') {
-              message += `**Weeks Tracked:** ${value}\n`;
-            }
-          }
-        }
-        
-        // Add chart visualization
-        if (result.data && result.data.labels && result.data.datasets) {
-          message += `\n📊 **Chart Visualization:**\n`;
-          
-          const labels = result.data.labels;
-          const dataset = result.data.datasets[0];
-          const dataPoints = dataset.data;
-          
-          // Create a simple text-based chart
-          if (result.chartConfig.type === 'line' || result.chartConfig.type === 'bar') {
-            message += this.createTextChart(labels, dataPoints, dataset.label, result.chartConfig.type);
-          } else if (result.chartConfig.type === 'pie') {
-            message += this.createPieChart(labels, dataPoints);
-          }
-          
-          message += `\n📈 **Chart Data:** ${result.chartConfig.type} chart with ${dataPoints.length} data points\n`;
-        }
-
-        return {
-          success: true,
-          message: message,
-          data: result.data,
-          chartConfig: result.chartConfig,
-          insights: result.insights,
-          chartReady: true
-        };
-      } else {
-        throw new Error('Failed to fetch analytics');
+      let allData = [];
+      switch (data.metric) {
+        case 'weight': allData = await db.getWeightHistory(); break;
+        case 'sleep': allData = await db.getSleepHistory(); break;
+        case 'mood': allData = await db.getMoodHistory(); break;
+        case 'blood_pressure': allData = await db.getBloodPressureHistory(); break;
+        case 'symptoms': allData = await db.getSymptomsHistory(); break;
+        default: allData = [];
       }
+      let message = `\ud83d\udcca **${data.metric.charAt(0).toUpperCase() + data.metric.slice(1)} Analytics**\n\n`;
+      message += `**Total Entries:** ${allData.length}\n`;
+      if (allData.length === 0) {
+        message += '\nNo data yet. Start logging to see trends!';
+      } else if (data.metric === 'weight') {
+        const w = allData.map(e => parseFloat(e.weight)).filter(v => !isNaN(v));
+        if (w.length) message += `**Min:** ${Math.min(...w)}kg  **Max:** ${Math.max(...w)}kg  **Avg:** ${(w.reduce((a,b)=>a+b,0)/w.length).toFixed(1)}kg\n`;
+      } else if (data.metric === 'sleep') {
+        const d = allData.map(e => parseFloat(e.duration)).filter(v => !isNaN(v));
+        if (d.length) message += `**Min:** ${Math.min(...d)}h  **Max:** ${Math.max(...d)}h  **Avg:** ${(d.reduce((a,b)=>a+b,0)/d.length).toFixed(1)}h\n`;
+      } else if (data.metric === 'mood') {
+        const mc = {}; allData.forEach(e => { mc[e.mood] = (mc[e.mood]||0)+1; });
+        for (const [mood, c] of Object.entries(mc)) message += `  ${mood}: ${c}\n`;
+      }
+      return { success: true, message, data: allData };
     } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to get analytics: ${error.message}`
-      };
+      return { success: false, message: `\u274c Failed: ${error.message}` };
     }
   }
 
-  /**
-   * Create a text-based chart visualization
-   */
   createTextChart(labels, dataPoints, label, chartType) {
-    let chart = '';
-    
-    // Find min and max values for scaling
-    const minValue = Math.min(...dataPoints);
-    const maxValue = Math.max(...dataPoints);
-    const range = maxValue - minValue;
-    const scale = range > 0 ? range : 1;
-    
-    // Chart header
-    chart += `\`\`\`\n`;
-    chart += `${label}\n`;
-    chart += `┌${'─'.repeat(50)}┐\n`;
-    
-    if (chartType === 'line') {
-      // Create line chart
-      for (let i = 0; i < labels.length; i++) {
-        const value = dataPoints[i];
-        const normalizedValue = ((value - minValue) / scale) * 40; // Scale to 40 chars
-        const barLength = Math.max(1, Math.round(normalizedValue));
-        
-        chart += `│ ${labels[i].padEnd(10)} █${'█'.repeat(barLength)} ${value}${i < labels.length - 1 ? '\n' : ''}`;
-      }
-    } else if (chartType === 'bar') {
-      // Create bar chart
-      for (let i = 0; i < labels.length; i++) {
-        const value = dataPoints[i];
-        const normalizedValue = ((value - minValue) / scale) * 40; // Scale to 40 chars
-        const barLength = Math.max(1, Math.round(normalizedValue));
-        
-        chart += `│ ${labels[i].padEnd(10)} █${'█'.repeat(barLength)} ${value}${i < labels.length - 1 ? '\n' : ''}`;
-      }
-    }
-    
-    chart += `\n└${'─'.repeat(50)}┘\n`;
-    chart += `Range: ${minValue} - ${maxValue}\n`;
-    chart += `\`\`\`\n`;
-    
-    return chart;
-  }
-
-  /**
-   * Create a text-based pie chart visualization
-   */
-  createPieChart(labels, dataPoints) {
-    let chart = '';
-    const total = dataPoints.reduce((a, b) => a + b, 0);
-    
-    chart += `\`\`\`\n`;
-    chart += `Distribution:\n`;
-    chart += `┌${'─'.repeat(40)}┐\n`;
-    
-    // Calculate percentages and create bars
+    const maxVal = Math.max(...dataPoints);
+    let chart = `\`\`\`\n${label}\n`;
     for (let i = 0; i < labels.length; i++) {
-      const value = dataPoints[i];
-      const percentage = ((value / total) * 100).toFixed(1);
-      const barLength = Math.round((value / total) * 30); // Scale to 30 chars
-      
-      chart += `│ ${labels[i].padEnd(15)} █${'█'.repeat(barLength)} ${percentage}%\n`;
+      const bar = '\u2588'.repeat(Math.max(1, Math.round((dataPoints[i] / maxVal) * 30)));
+      chart += `${labels[i].toString().padEnd(10)} ${bar} ${dataPoints[i]}\n`;
     }
-    
-    chart += `└${'─'.repeat(40)}┘\n`;
-    chart += `Total: ${total}\n`;
     chart += `\`\`\`\n`;
-    
     return chart;
   }
 
-  /**
-   * View weight logs
-   */
-  async viewWeightLogs(data, userContext) {
-    try {
-      const response = await fetch(`${BASE_URL}/weight`);
-      if (response.ok) {
-        const logs = await response.json();
-        
-        // Filter by week if specified
-        let filteredLogs = logs;
-        if (data.week_number) {
-          filteredLogs = logs.filter(log => log.week_number === data.week_number);
-        }
-        
-        // Limit results if specified
-        if (data.limit) {
-          filteredLogs = filteredLogs.slice(0, data.limit);
-        }
-        
-        if (filteredLogs.length === 0) {
-          return {
-            success: true,
-            message: `📊 **Weight Logs**\n\nNo weight entries found${data.week_number ? ` for week ${data.week_number}` : ''}.`
-          };
-        }
-        
-        let message = `📊 **Weight Logs**\n\n`;
-        
-        // Add summary info
-        message += `📈 **Total Entries:** ${filteredLogs.length}\n`;
-        if (filteredLogs.length > 1) {
-          const weights = filteredLogs.map(log => log.weight);
-          const minWeight = Math.min(...weights);
-          const maxWeight = Math.max(...weights);
-          const avgWeight = (weights.reduce((a, b) => a + b, 0) / weights.length).toFixed(1);
-          message += `⚖️ **Range:** ${minWeight}kg - ${maxWeight}kg\n`;
-          message += `📊 **Average:** ${avgWeight}kg\n\n`;
-        }
-        
-        // Format individual entries
-        filteredLogs.forEach((log, index) => {
-          message += `**${index + 1}. Week ${log.week_number}**\n`;
-          message += `   ⚖️ **Weight:** ${log.weight}kg\n`;
-          if (log.note) message += `   📝 **Note:** ${log.note}\n`;
-          if (log.created_at) {
-            const date = new Date(log.created_at).toLocaleDateString();
-            message += `   📅 **Date:** ${date}\n`;
-          }
-          message += `\n`;
-        });
-        
-        return {
-          success: true,
-          message: message,
-          data: filteredLogs
-        };
-      } else {
-        throw new Error('Failed to fetch weight logs');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to get weight logs: ${error.message}`
-      };
+  createPieChart(labels, dataPoints) {
+    const total = dataPoints.reduce((a, b) => a + b, 0);
+    let chart = `\`\`\`\n`;
+    for (let i = 0; i < labels.length; i++) {
+      const pct = ((dataPoints[i] / total) * 100).toFixed(1);
+      chart += `${labels[i].toString().padEnd(15)} ${'\u2588'.repeat(Math.round(pct / 3))} ${pct}%\n`;
     }
+    chart += `\`\`\`\n`;
+    return chart;
   }
 
-  /**
-   * View medicine logs
-   */
-  async viewMedicineLogs(data, userContext) {
+  async viewWeightLogs(data) {
     try {
-      const response = await fetch(`${BASE_URL}/get_medicine`);
-      if (response.ok) {
-        const logs = await response.json();
-        
-        // Filter by week if specified
-        let filteredLogs = logs;
-        if (data.week_number) {
-          filteredLogs = logs.filter(log => log.week_number === data.week_number);
-        }
-        
-        // Limit results if specified
-        if (data.limit) {
-          filteredLogs = filteredLogs.slice(0, data.limit);
-        }
-        
-        if (filteredLogs.length === 0) {
-          return {
-            success: true,
-            message: `💊 **Medicine Logs**\n\nNo medicine entries found${data.week_number ? ` for week ${data.week_number}` : ''}.`
-          };
-        }
-        
-        let message = `💊 **Medicine Logs**\n\n`;
-        
-        // Add summary info
-        message += `📈 **Total Entries:** ${filteredLogs.length}\n`;
-        const uniqueMedicines = [...new Set(filteredLogs.map(log => log.name))];
-        if (uniqueMedicines.length > 1) {
-          message += `💊 **Medicines:** ${uniqueMedicines.join(', ')}\n\n`;
-        }
-        
-        // Format individual entries
-        filteredLogs.forEach((log, index) => {
-          message += `**${index + 1}. ${log.name}**\n`;
-          message += `   💊 **Medicine:** ${log.name}\n`;
-          message += `   📏 **Dose:** ${log.dose}\n`;
-          message += `   ⏰ **Time:** ${log.time}\n`;
-          message += `   📅 **Week:** ${log.week_number}\n`;
-          if (log.note) message += `   📝 **Note:** ${log.note}\n`;
-          if (log.created_at) {
-            const date = new Date(log.created_at).toLocaleDateString();
-            message += `   📅 **Date:** ${date}\n`;
-          }
-          message += `\n`;
-        });
-        
-        return {
-          success: true,
-          message: message,
-          data: filteredLogs
-        };
-      } else {
-        throw new Error('Failed to fetch medicine logs');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to get medicine logs: ${error.message}`
-      };
-    }
+      const logs = await db.getWeightHistory();
+      let fl = data.week_number ? logs.filter(l => l.week_number === data.week_number) : logs;
+      if (data.limit) fl = fl.slice(0, data.limit);
+      if (!fl.length) return { success: true, message: '\ud83d\udcca No weight entries found.' };
+      let msg = `\ud83d\udcca **Weight Logs** (${fl.length})\n\n`;
+      fl.forEach((l, i) => { msg += `${i + 1}. Wk ${l.week_number}: **${l.weight}kg**${l.note ? ' \u2014 ' + l.note : ''}\n`; });
+      return { success: true, message: msg, data: fl };
+    } catch (e) { return { success: false, message: `\u274c ${e.message}` }; }
   }
 
-  /**
-   * View symptoms logs
-   */
-  async viewSymptomsLogs(data, userContext) {
+  async viewMedicineLogs(data) {
     try {
-      const response = await fetch(`${BASE_URL}/symptoms`);
-      if (response.ok) {
-        const logs = await response.json();
-        
-        // Filter by week if specified
-        let filteredLogs = logs;
-        if (data.week_number) {
-          filteredLogs = logs.filter(log => log.week_number === data.week_number);
-        }
-        
-        // Limit results if specified
-        if (data.limit) {
-          filteredLogs = filteredLogs.slice(0, data.limit);
-        }
-        
-        if (filteredLogs.length === 0) {
-          return {
-            success: true,
-            message: `🤒 **Symptoms Logs**\n\nNo symptom entries found${data.week_number ? ` for week ${data.week_number}` : ''}.`
-          };
-        }
-        
-        let message = `🤒 **Symptoms Logs**\n\n`;
-        
-        // Add summary info
-        message += `📈 **Total Entries:** ${filteredLogs.length}\n`;
-        const uniqueSymptoms = [...new Set(filteredLogs.map(log => log.symptom))];
-        if (uniqueSymptoms.length > 1) {
-          message += `🤒 **Symptoms:** ${uniqueSymptoms.join(', ')}\n\n`;
-        }
-        
-        // Format individual entries
-        filteredLogs.forEach((log, index) => {
-          message += `**${index + 1}. ${log.symptom}**\n`;
-          message += `   🤒 **Symptom:** ${log.symptom}\n`;
-          message += `   📅 **Week:** ${log.week_number}\n`;
-          if (log.note) message += `   📝 **Note:** ${log.note}\n`;
-          if (log.created_at) {
-            const date = new Date(log.created_at).toLocaleDateString();
-            message += `   📅 **Date:** ${date}\n`;
-          }
-          message += `\n`;
-        });
-        
-        return {
-          success: true,
-          message: message,
-          data: filteredLogs
-        };
-      } else {
-        throw new Error('Failed to fetch symptoms logs');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to get symptoms logs: ${error.message}`
-      };
-    }
+      const logs = await db.getMedicineHistory();
+      let fl = data.week_number ? logs.filter(l => l.week_number === data.week_number) : logs;
+      if (data.limit) fl = fl.slice(0, data.limit);
+      if (!fl.length) return { success: true, message: '\ud83d\udc8a No medicine entries found.' };
+      let msg = `\ud83d\udc8a **Medicine Logs** (${fl.length})\n\n`;
+      fl.forEach((l, i) => { msg += `${i + 1}. **${l.name}** ${l.dose || ''}${l.time ? ' at ' + l.time : ''}\n`; });
+      return { success: true, message: msg, data: fl };
+    } catch (e) { return { success: false, message: `\u274c ${e.message}` }; }
   }
 
-  /**
-   * View blood pressure logs
-   */
-  async viewBloodPressureLogs(data, userContext) {
+  async viewSymptomsLogs(data) {
     try {
-      const response = await fetch(`${BASE_URL}/blood_pressure`);
-      if (response.ok) {
-        const logs = await response.json();
-        
-        // Filter by week if specified
-        let filteredLogs = logs;
-        if (data.week_number) {
-          filteredLogs = logs.filter(log => log.week_number === data.week_number);
-        }
-        
-        // Limit results if specified
-        if (data.limit) {
-          filteredLogs = filteredLogs.slice(0, data.limit);
-        }
-        
-        if (filteredLogs.length === 0) {
-          return {
-            success: true,
-            message: `🩸 **Blood Pressure Logs**\n\nNo BP entries found${data.week_number ? ` for week ${data.week_number}` : ''}.`
-          };
-        }
-        
-        let message = `🩸 **Blood Pressure Logs**\n\n`;
-        
-        // Add summary info
-        message += `📈 **Total Entries:** ${filteredLogs.length}\n`;
-        if (filteredLogs.length > 1) {
-          const readings = filteredLogs.map(log => ({ systolic: log.systolic, diastolic: log.diastolic }));
-          const avgSystolic = (readings.reduce((a, b) => a + b.systolic, 0) / readings.length).toFixed(0);
-          const avgDiastolic = (readings.reduce((a, b) => a + b.diastolic, 0) / readings.length).toFixed(0);
-          message += `📊 **Average:** ${avgSystolic}/${avgDiastolic} mmHg\n\n`;
-        }
-        
-        // Format individual entries
-        filteredLogs.forEach((log, index) => {
-          message += `**${index + 1}. ${log.systolic}/${log.diastolic} mmHg**\n`;
-          message += `   🩸 **Reading:** ${log.systolic}/${log.diastolic} mmHg\n`;
-          message += `   ⏰ **Time:** ${log.time}\n`;
-          message += `   📅 **Week:** ${log.week_number}\n`;
-          if (log.note) message += `   📝 **Note:** ${log.note}\n`;
-          if (log.created_at) {
-            const date = new Date(log.created_at).toLocaleDateString();
-            message += `   📅 **Date:** ${date}\n`;
-          }
-          message += `\n`;
-        });
-        
-        return {
-          success: true,
-          message: message,
-          data: filteredLogs
-        };
-      } else {
-        throw new Error('Failed to fetch blood pressure logs');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to get blood pressure logs: ${error.message}`
-      };
-    }
+      const logs = await db.getSymptomsHistory();
+      let fl = data.week_number ? logs.filter(l => l.week_number === data.week_number) : logs;
+      if (data.limit) fl = fl.slice(0, data.limit);
+      if (!fl.length) return { success: true, message: '\ud83e\udd12 No symptom entries found.' };
+      let msg = `\ud83e\udd12 **Symptoms Logs** (${fl.length})\n\n`;
+      fl.forEach((l, i) => { msg += `${i + 1}. Wk ${l.week_number}: **${l.symptom}**\n`; });
+      return { success: true, message: msg, data: fl };
+    } catch (e) { return { success: false, message: `\u274c ${e.message}` }; }
   }
 
-  /**
-   * View discharge logs
-   */
-  async viewDischargeLogs(data, userContext) {
+  async viewBloodPressureLogs(data) {
     try {
-      const response = await fetch(`${BASE_URL}/discharge`);
-      if (response.ok) {
-        const logs = await response.json();
-        
-        // Filter by week if specified
-        let filteredLogs = logs;
-        if (data.week_number) {
-          filteredLogs = logs.filter(log => log.week_number === data.week_number);
-        }
-        
-        // Limit results if specified
-        if (data.limit) {
-          filteredLogs = filteredLogs.slice(0, data.limit);
-        }
-        
-        if (filteredLogs.length === 0) {
-          return {
-            success: true,
-            message: `🩸 **Discharge Logs**\n\nNo discharge entries found${data.week_number ? ` for week ${data.week_number}` : ''}.`
-          };
-        }
-        
-        let message = `🩸 **Discharge Logs**\n\n`;
-        
-        // Add summary info
-        message += `📈 **Total Entries:** ${filteredLogs.length}\n`;
-        const uniqueTypes = [...new Set(filteredLogs.map(log => log.type))];
-        if (uniqueTypes.length > 1) {
-          message += `🩸 **Types:** ${uniqueTypes.join(', ')}\n\n`;
-        }
-        
-        // Format individual entries
-        filteredLogs.forEach((log, index) => {
-          message += `**${index + 1}. ${log.type}**\n`;
-          message += `   🩸 **Type:** ${log.type}\n`;
-          message += `   🎨 **Color:** ${log.color}\n`;
-          if (log.bleeding === 'yes') message += `   ⚠️ **Bleeding:** Yes\n`;
-          message += `   📅 **Week:** ${log.week_number}\n`;
-          if (log.note) message += `   📝 **Note:** ${log.note}\n`;
-          if (log.created_at) {
-            const date = new Date(log.created_at).toLocaleDateString();
-            message += `   📅 **Date:** ${date}\n`;
-          }
-          message += `\n`;
-        });
-        
-        return {
-          success: true,
-          message: message,
-          data: filteredLogs
-        };
-      } else {
-        throw new Error('Failed to fetch discharge logs');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to get discharge logs: ${error.message}`
-      };
-    }
+      const logs = await db.getBloodPressureHistory();
+      let fl = data.week_number ? logs.filter(l => l.week_number === data.week_number) : logs;
+      if (data.limit) fl = fl.slice(0, data.limit);
+      if (!fl.length) return { success: true, message: '\ud83e\ude7a No BP entries found.' };
+      let msg = `\ud83e\ude7a **Blood Pressure Logs** (${fl.length})\n\n`;
+      fl.forEach((l, i) => { msg += `${i + 1}. Wk ${l.week_number}: **${l.systolic}/${l.diastolic}**\n`; });
+      return { success: true, message: msg, data: fl };
+    } catch (e) { return { success: false, message: `\u274c ${e.message}` }; }
   }
 
-  /**
-   * Undo last action
-   */
-  async undoAction(data, userContext) {
+  async viewDischargeLogs(data) {
     try {
-      const response = await fetch(`${BASE_URL}/undo_last_action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action_type: data.action_type || 'last'
-        })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        return {
-          success: true,
-          message: `↩️ **Action undone successfully!**\n\n**Undone:** ${result.action_description || 'Last action'}\n**Type:** ${result.action_type || 'Unknown'}`
-        };
-      } else {
-        throw new Error('Failed to undo action');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to undo action: ${error.message}`
-      };
-    }
+      const logs = await db.getDischargeHistory();
+      let fl = data.week_number ? logs.filter(l => l.week_number === data.week_number) : logs;
+      if (data.limit) fl = fl.slice(0, data.limit);
+      if (!fl.length) return { success: true, message: '\ud83e\ude78 No discharge entries found.' };
+      let msg = `\ud83e\ude78 **Discharge Logs** (${fl.length})\n\n`;
+      fl.forEach((l, i) => { msg += `${i + 1}. Wk ${l.week_number}: ${l.type}, ${l.color}\n`; });
+      return { success: true, message: msg, data: fl };
+    } catch (e) { return { success: false, message: `\u274c ${e.message}` }; }
   }
 
-  // ==================== MEDICINE CRUD OPERATIONS ====================
-
-  /**
-   * Update medicine entry
-   */
-  async updateMedicine(data, userContext) {
-    try {
-      const response = await fetch(`${BASE_URL}/update_medicine`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          medicine_name: data.medicine_name,
-          dose: data.dose,
-          frequency: data.frequency,
-          start_date: data.start_date,
-          end_date: data.end_date,
-          note: data.note
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Medicine Updated Successfully**\n\n📋 **${data.medicine_name}** has been updated with new information.`
-        };
-      } else {
-        throw new Error('Failed to update medicine');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to update medicine: ${error.message}`
-      };
-    }
+  async undoAction() {
+    return { success: false, message: '\u21a9\ufe0f Undo is not supported offline. Please edit or delete entries manually.' };
   }
 
-  /**
-   * Delete medicine entry
-   */
-  async deleteMedicine(data, userContext) {
-    try {
-      const response = await fetch(`${BASE_URL}/delete_medicine`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          medicine_name: data.medicine_name,
-          date: data.date
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Medicine Deleted Successfully**\n\n🗑️ **${data.medicine_name}** entry has been removed from your records.`
-        };
-      } else {
-        throw new Error('Failed to delete medicine');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to delete medicine: ${error.message}`
-      };
-    }
-  }
-
-  // ==================== BLOOD PRESSURE CRUD OPERATIONS ====================
-
-  /**
-   * Update blood pressure entry
-   */
-  async updateBloodPressure(data, userContext) {
-    try {
-      const response = await fetch(`${BASE_URL}/update_blood_pressure`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systolic: data.systolic,
-          diastolic: data.diastolic,
-          date: data.date,
-          time: data.time,
-          note: data.note
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Blood Pressure Updated Successfully**\n\n🩺 **${data.systolic}/${data.diastolic}** reading has been updated.`
-        };
-      } else {
-        throw new Error('Failed to update blood pressure');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to update blood pressure: ${error.message}`
-      };
-    }
-  }
-
-  /**
-   * Delete blood pressure entry
-   */
-  async deleteBloodPressure(data, userContext) {
-    try {
-      const response = await fetch(`${BASE_URL}/delete_blood_pressure`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: data.date,
-          time: data.time
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Blood Pressure Deleted Successfully**\n\n🗑️ Blood pressure reading for ${data.date} has been removed.`
-        };
-      } else {
-        throw new Error('Failed to delete blood pressure');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to delete blood pressure: ${error.message}`
-      };
-    }
-  }
-
-  // ==================== DISCHARGE CRUD OPERATIONS ====================
-
-  /**
-   * Update discharge entry
-   */
-  async updateDischarge(data, userContext) {
-    try {
-      const response = await fetch(`${BASE_URL}/update_discharge`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          discharge_type: data.discharge_type,
-          date: data.date,
-          time: data.time,
-          note: data.note
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Discharge Updated Successfully**\n\n📋 **${data.discharge_type}** entry has been updated.`
-        };
-      } else {
-        throw new Error('Failed to update discharge');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to update discharge: ${error.message}`
-      };
-    }
-  }
-
-  /**
-   * Delete discharge entry
-   */
-  async deleteDischarge(data, userContext) {
-    try {
-      const response = await fetch(`${BASE_URL}/delete_discharge`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: data.date,
-          time: data.time
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Discharge Deleted Successfully**\n\n🗑️ Discharge entry for ${data.date} has been removed.`
-        };
-      } else {
-        throw new Error('Failed to delete discharge');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to delete discharge: ${error.message}`
-      };
-    }
-  }
-
-  // ==================== SYMPTOMS CRUD OPERATIONS ====================
-
-  /**
-   * Update symptoms entry
-   */
-  async updateSymptoms(data, userContext) {
-    try {
-      const response = await fetch(`${BASE_URL}/update_symptoms`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          symptom: data.symptom,
-          date: data.date,
-          time: data.time,
-          note: data.note
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Symptoms Updated Successfully**\n\n🤒 **${data.symptom}** entry has been updated.`
-        };
-      } else {
-        throw new Error('Failed to update symptoms');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to update symptoms: ${error.message}`
-      };
-    }
-  }
-
-  /**
-   * Delete symptoms entry
-   */
-  async deleteSymptoms(data, userContext) {
-    try {
-      const response = await fetch(`${BASE_URL}/delete_symptoms`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: data.date,
-          time: data.time
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Symptoms Deleted Successfully**\n\n🗑️ Symptoms entry for ${data.date} has been removed.`
-        };
-      } else {
-        throw new Error('Failed to delete symptoms');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to delete symptoms: ${error.message}`
-      };
-    }
-  }
-
-  // ==================== WEIGHT CRUD OPERATIONS ====================
-
-  /**
-   * Update weight entry
-   */
-  async updateWeight(data, userContext) {
-    try {
-      const response = await fetch(`${BASE_URL}/update_weight`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          weight: data.weight,
-          date: data.date,
-          week: data.week,
-          note: data.note
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Weight Updated Successfully**\n\n⚖️ **${data.weight}kg** entry has been updated.`
-        };
-      } else {
-        throw new Error('Failed to update weight');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to update weight: ${error.message}`
-      };
-    }
-  }
-
-  /**
-   * Delete weight entry
-   */
-  async deleteWeight(data, userContext) {
-    try {
-      const response = await fetch(`${BASE_URL}/delete_weight`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: data.date,
-          time: data.time
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Weight Deleted Successfully**\n\n🗑️ Weight entry for ${data.date} has been removed.`
-        };
-      } else {
-        throw new Error('Failed to delete weight');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to delete weight: ${error.message}`
-      };
-    }
-  }
-
-  // ==================== MOOD CRUD OPERATIONS ====================
-
-  /**
-   * Update mood entry
-   */
-  async updateMood(data, userContext) {
-    try {
-      const response = await fetch(`${BASE_URL}/update_mood`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mood: data.mood,
-          intensity: data.intensity,
-          date: data.date,
-          note: data.note
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Mood Updated Successfully**\n\n😊 **${data.mood}** entry has been updated.`
-        };
-      } else {
-        throw new Error('Failed to update mood');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to update mood: ${error.message}`
-      };
-    }
-  }
-
-  /**
-   * Delete mood entry
-   */
-  async deleteMood(data, userContext) {
-    try {
-      const response = await fetch(`${BASE_URL}/delete_mood`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: data.date,
-          time: data.time
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Mood Deleted Successfully**\n\n🗑️ Mood entry for ${data.date} has been removed.`
-        };
-      } else {
-        throw new Error('Failed to delete mood');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to delete mood: ${error.message}`
-      };
-    }
-  }
-
-  // ==================== SLEEP CRUD OPERATIONS ====================
-
-  /**
-   * Update sleep entry
-   */
-  async updateSleep(data, userContext) {
-    try {
-      const response = await fetch(`${BASE_URL}/update_sleep`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          duration: data.duration,
-          bedtime: data.bedtime,
-          wake_time: data.wake_time,
-          quality: data.quality,
-          date: data.date,
-          note: data.note
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Sleep Updated Successfully**\n\n😴 **${data.duration} hours** sleep entry has been updated.`
-        };
-      } else {
-        throw new Error('Failed to update sleep');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to update sleep: ${error.message}`
-      };
-    }
-  }
-
-  /**
-   * Delete sleep entry
-   */
-  async deleteSleep(data, userContext) {
-    try {
-      const response = await fetch(`${BASE_URL}/delete_sleep`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: data.date,
-          time: data.time
-        })
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          message: `✅ **Sleep Deleted Successfully**\n\n🗑️ Sleep entry for ${data.date} has been removed.`
-        };
-      } else {
-        throw new Error('Failed to delete sleep');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `❌ Failed to delete sleep: ${error.message}`
-      };
-    }
-  }
+  async updateMedicine(data) { try { const all = await db.getMedicineHistory(); const m = all.find(e => e.name && e.name.toLowerCase().includes((data.medicine_name||'').toLowerCase())); if (!m) return {success:false,message:'\u274c Not found.'}; await db.updateMedicine(m.id, data); return {success:true,message:'\u2705 Medicine updated.'}; } catch(e) { return {success:false,message:'\u274c '+e.message}; } }
+  async deleteMedicine(data) { try { const all = await db.getMedicineHistory(); const m = all.find(e => e.name && e.name.toLowerCase().includes((data.medicine_name||'').toLowerCase())); if (!m) return {success:false,message:'\u274c Not found.'}; await db.deleteMedicine(m.id); return {success:true,message:'\u2705 Medicine deleted.'}; } catch(e) { return {success:false,message:'\u274c '+e.message}; } }
+  async updateBloodPressure(data) { try { const all = await db.getBloodPressureHistory(); const m = all[all.length-1]; if (!m) return {success:false,message:'\u274c Not found.'}; await db.updateBloodPressure(m.id, data); return {success:true,message:'\u2705 BP updated.'}; } catch(e) { return {success:false,message:'\u274c '+e.message}; } }
+  async deleteBloodPressure(data) { try { const all = await db.getBloodPressureHistory(); const m = all[all.length-1]; if (!m) return {success:false,message:'\u274c Not found.'}; await db.deleteBloodPressure(m.id); return {success:true,message:'\u2705 BP deleted.'}; } catch(e) { return {success:false,message:'\u274c '+e.message}; } }
+  async updateDischarge(data) { try { const all = await db.getDischargeHistory(); const m = all[all.length-1]; if (!m) return {success:false,message:'\u274c Not found.'}; await db.updateDischarge(m.id, data); return {success:true,message:'\u2705 Discharge updated.'}; } catch(e) { return {success:false,message:'\u274c '+e.message}; } }
+  async deleteDischarge(data) { try { const all = await db.getDischargeHistory(); const m = all[all.length-1]; if (!m) return {success:false,message:'\u274c Not found.'}; await db.deleteDischarge(m.id); return {success:true,message:'\u2705 Discharge deleted.'}; } catch(e) { return {success:false,message:'\u274c '+e.message}; } }
+  async updateSymptoms(data) { try { const all = await db.getSymptomsHistory(); const m = all[all.length-1]; if (!m) return {success:false,message:'\u274c Not found.'}; await db.updateSymptom(m.id, data); return {success:true,message:'\u2705 Symptom updated.'}; } catch(e) { return {success:false,message:'\u274c '+e.message}; } }
+  async deleteSymptoms(data) { try { const all = await db.getSymptomsHistory(); const m = all[all.length-1]; if (!m) return {success:false,message:'\u274c Not found.'}; await db.deleteSymptom(m.id); return {success:true,message:'\u2705 Symptom deleted.'}; } catch(e) { return {success:false,message:'\u274c '+e.message}; } }
+  async updateWeight(data) { try { const all = await db.getWeightHistory(); const m = all[all.length-1]; if (!m) return {success:false,message:'\u274c Not found.'}; await db.updateWeight(m.id, data); return {success:true,message:'\u2705 Weight updated.'}; } catch(e) { return {success:false,message:'\u274c '+e.message}; } }
+  async deleteWeight(data) { try { const all = await db.getWeightHistory(); const m = all[all.length-1]; if (!m) return {success:false,message:'\u274c Not found.'}; await db.deleteWeight(m.id); return {success:true,message:'\u2705 Weight deleted.'}; } catch(e) { return {success:false,message:'\u274c '+e.message}; } }
+  async updateMoodEntry(data) { try { const all = await db.getMoodHistory(); const m = all[all.length-1]; if (!m) return {success:false,message:'\u274c Not found.'}; await db.updateMood(m.id, data); return {success:true,message:'\u2705 Mood updated.'}; } catch(e) { return {success:false,message:'\u274c '+e.message}; } }
+  async deleteMoodEntry(data) { try { const all = await db.getMoodHistory(); const m = all[all.length-1]; if (!m) return {success:false,message:'\u274c Not found.'}; await db.deleteMood(m.id); return {success:true,message:'\u2705 Mood deleted.'}; } catch(e) { return {success:false,message:'\u274c '+e.message}; } }
+  async updateSleepEntry(data) { try { const all = await db.getSleepHistory(); const m = all[all.length-1]; if (!m) return {success:false,message:'\u274c Not found.'}; await db.updateSleep(m.id, data); return {success:true,message:'\u2705 Sleep updated.'}; } catch(e) { return {success:false,message:'\u274c '+e.message}; } }
+  async deleteSleepEntry(data) { try { const all = await db.getSleepHistory(); const m = all[all.length-1]; if (!m) return {success:false,message:'\u274c Not found.'}; await db.deleteSleep(m.id); return {success:true,message:'\u2705 Sleep deleted.'}; } catch(e) { return {success:false,message:'\u274c '+e.message}; } }
 }
 
 // Export singleton instance

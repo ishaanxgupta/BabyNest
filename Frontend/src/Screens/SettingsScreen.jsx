@@ -13,7 +13,7 @@ import {
 import { useTheme } from '../theme/ThemeContext';
 import { Modal, Portal, Button, Provider } from 'react-native-paper'; // Import from paper
 import CustomHeader from '../Components/CustomHeader';
-import { BASE_URL } from '@env';
+import * as db from '../services/database';
 
 const IconButton = ({ icon, label }) => {
   const { theme } = useTheme();
@@ -57,21 +57,18 @@ export default function SettingsScreen() {
 
   const fetchProfileData = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/get_profile`);
-      if (response.ok) {
-        const data = await response.json();
+      const data = await db.getLocalProfile();
+      if (data) {
         setProfileData({
           name: data.name || 'Guest',
           due_date: data.due_date || 'Not set',
           location: data.location || 'Not set'
         });
       } else {
-        // If profile not found, keep default values
         console.log('Profile not found, using default values');
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
-      Alert.alert('Error', 'Failed to load profile data');
     } finally {
       setLoading(false);
       setRefreshing(false);

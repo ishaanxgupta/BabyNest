@@ -15,7 +15,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation } from '@react-navigation/native';
 import HeaderWithBack from '../Components/HeaderWithBack';
-import { BASE_URL } from '@env';
+import {getLocalProfile} from '../services/database';
 
 const ProfileField = ({ label, value }) => (
   <View style={styles.fieldContainer}>
@@ -40,18 +40,16 @@ export default function ProfileScreen() {
 
   const fetchProfileData = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/get_profile`);
-      if (response.ok) {
-        const data = await response.json();
+      const data = await getLocalProfile();
+      if (data) {
         setProfileData({
           name: data.name || 'Guest',
-          due_date: data.due_date || 'Not set',
+          due_date: data.dueDate || 'Not set',
           location: data.location || 'Not set',
         });
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
-      Alert.alert('Error', 'Failed to load profile data');
     } finally {
       setLoading(false);
       setRefreshing(false);

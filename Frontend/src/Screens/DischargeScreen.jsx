@@ -9,8 +9,8 @@ import {
 } from 'react-native';
 import {TextInput, Button, Card, Dialog, Portal} from 'react-native-paper';
 import Icon from 'react-native-vector-icons/Ionicons';
-import {BASE_URL} from '@env';
 import HeaderWithBack from '../Components/HeaderWithBack';
+import {getDischargeHistory, addDischarge, updateDischarge, deleteDischarge} from '../services/database';
 
 export default function DischargeScreen() {
   const [week, setWeek] = useState('');
@@ -26,15 +26,10 @@ export default function DischargeScreen() {
 
   const fetchDischargeLogs = async () => {
     try {
-      const res = await fetch(`${BASE_URL}/get_discharge_logs`);
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-      const data = await res.json();
-      setHistory(data);
+      const data = await getDischargeHistory();
+      setHistory([...data]);
     } catch (err) {
       console.error('Failed to fetch discharge logs:', err);
-      Alert.alert('Error', 'Failed to load discharge logs. Please try again.');
     }
   };
 
@@ -54,16 +49,7 @@ export default function DischargeScreen() {
       return;
     }
     try {
-      const res = await fetch(`${BASE_URL}/set_discharge_log`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({week_number: week, type, color, bleeding, note}),
-      });
-
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-
+      await addDischarge({week_number: week, type, color, bleeding, note});
       setWeek('');
       setType('');
       setColor('');
@@ -87,14 +73,7 @@ export default function DischargeScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const res = await fetch(`${BASE_URL}/discharge_log/${id}`, {
-                method: 'DELETE',
-              });
-
-              if (!res.ok) {
-                throw new Error(`HTTP error! status: ${res.status}`);
-              }
-
+              await deleteDischarge(id);
               fetchDischargeLogs();
             } catch (err) {
               console.error('Failed to delete entry:', err);
@@ -129,22 +108,13 @@ export default function DischargeScreen() {
       return;
     }
     try {
-      const res = await fetch(`${BASE_URL}/discharge_log/${editData.id}`, {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          week_number: editData.week_number,
-          type: editData.type,
-          color: editData.color,
-          bleeding: editData.bleeding,
-          note: editData.note,
-        }),
+      await updateDischarge(editData.id, {
+        week_number: editData.week_number,
+        type: editData.type,
+        color: editData.color,
+        bleeding: editData.bleeding,
+        note: editData.note,
       });
-
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-
       setEditVisible(false);
       setEditData(null);
       fetchDischargeLogs();
